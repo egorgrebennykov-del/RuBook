@@ -365,7 +365,7 @@ Verify book titles and authors. Do NOT invent fake books or authors.
  * Critical requirement: supplier searches must use book titles only!
  * Do NOT search supplier websites by plot, subject, description, or author.
  */
-export async function searchSuppliersByTitleOnly(title, exchangeRate = DEFAULT_RATE) {
+export async function searchSuppliersByTitleOnly(title) {
   const cleanTitle = (title || "").trim();
   if (!cleanTitle) return [];
 
@@ -376,28 +376,44 @@ export async function searchSuppliersByTitleOnly(title, exchangeRate = DEFAULT_R
   }
 
   try {
-    const clean = encodeURIComponent(`*${cleanTitle}*`);
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/books?select=id,name,price,publisher,image,info&name=ilike.${clean}&limit=15`,
-      {
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-        },
+    const tokens = cleanTitle.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+    let queryUrl;
+
+    if (tokens.length > 0) {
+      const cleanPhrase = tokens.join(" ");
+      const conditions = [];
+      const fields = ["name", "publisher", "info->>author", "info->>series", "info->>genre"];
+
+      if (cleanPhrase.length >= 2) {
+        for (const f of fields) conditions.push(`${f}.ilike.*${cleanPhrase}*`);
+      }
+      for (const t of tokens) {
+        if (t.length >= 3) {
+          conditions.push(`name.ilike.*${t}*`);
+          conditions.push(`info->>author.ilike.*${t}*`);
+        }
+      }
+      queryUrl = `${SUPABASE_URL}/rest/v1/books?select=id,name,price,publisher,image,info&or=${encodeURIComponent(`(${conditions.join(",")})`)}&limit=15`;
+    } else {
+      queryUrl = `${SUPABASE_URL}/rest/v1/books?select=id,name,price,publisher,image,info&limit=15`;
+    }
+
+    const res = await fetch(queryUrl, {
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
       },
-    );
+    });
 
     const rows = res.ok ? await res.json() : [];
     const deduped = (rows || []).map((b) => {
       const eurPrice = Number(b.price) > 0 ? Number(b.price) : 5.99;
-      const rubPrice = b.info?.price_rub || Math.round(eurPrice * (exchangeRate || 84));
       return {
         id: b.id,
         title: (b.name || "").trim(),
         author: (b.info?.author || "").trim(),
         price: eurPrice,
         currency: "EUR",
-        price_rub: rubPrice,
         image: b.image || null,
         url: `/book/${b.id}`,
         store: b.publisher || "Transbaltik",

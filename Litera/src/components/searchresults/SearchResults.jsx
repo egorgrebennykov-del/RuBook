@@ -55,6 +55,7 @@ export default function SearchResults() {
   const navigate = useNavigate();
   const query = params.get("q") ?? (routeQuery ? decodeURIComponent(routeQuery) : "");
   const cache = useSearchCache();
+  const [inputVal, setInputVal] = useState(query);
   const [result, setResult] = useState({ query: "", books: [] });
   const [imageStatuses, setImageStatuses] = useState(() => new Map());
   const [cartItems, setCartItems] = useState(() => new Map());
@@ -67,6 +68,10 @@ export default function SearchResults() {
   const [addingUrls, setAddingUrls] = useState(() => new Set());
   const [cartError, setCartError] = useState("");
   const cartReady = !needsCartCheck || cartLoaded;
+
+  useEffect(() => {
+    setInputVal(query);
+  }, [query]);
 
   const cached = cache.get(query);
   const [searching, setSearching] = useState(false);
@@ -209,14 +214,89 @@ export default function SearchResults() {
     }
   };
 
-  const resultsHeading =
-    language === "ru"
-      ? `${t("search.resultsFor")} «${query}»`
-      : `${t("search.resultsFor")} “${query}”`;
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    const text = inputVal.trim();
+    if (!text) return;
+    navigate(`/search?q=${encodeURIComponent(text)}`);
+  };
+
+  const resultsHeading = query
+    ? (language === "ru"
+        ? `${t("search.resultsFor")} «${query}»`
+        : `${t("search.resultsFor")} “${query}”`)
+    : (language === "ru" ? "Поиск книг" : "Search books");
 
   return (
     <section className="results section container">
-      <h2 className="section__title">{resultsHeading}</h2>
+      {/* On-page Search Bar */}
+      <div className="results__search-bar-wrap">
+        <form className="results__search-form" onSubmit={handleSearchSubmit}>
+          <i className="ri-search-line results__search-icon" />
+          <input
+            type="search"
+            className="results__search-input"
+            value={inputVal}
+            onChange={(e) => setInputVal(e.target.value)}
+            placeholder={
+              language === "ru"
+                ? "Найти книгу, автора, серию, жанр..."
+                : "Search by book title, author, series, genre..."
+            }
+          />
+          {inputVal && (
+            <button
+              type="button"
+              className="results__search-clear"
+              onClick={() => setInputVal("")}
+              title={language === "ru" ? "Очистить" : "Clear"}
+            >
+              <i className="ri-close-line" />
+            </button>
+          )}
+          <button type="submit" className="button results__search-submit">
+            {language === "ru" ? "Найти" : "Search"}
+          </button>
+        </form>
+
+        {/* Suggestion Chips */}
+        <div className="results__quick-chips">
+          {[
+            "Майор Гром",
+            "Габрелянов",
+            "Дмитриева",
+            "Носов",
+            "Сказки",
+            "Незнайка",
+            "Гарри Поттер",
+            "BUBBLE",
+            "АСТ",
+          ].map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              className={`results__chip ${
+                query.toLowerCase() === tag.toLowerCase() ? "results__chip--active" : ""
+              }`}
+              onClick={() => {
+                setInputVal(tag);
+                navigate(`/search?q=${encodeURIComponent(tag)}`);
+              }}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="results__heading-row">
+        <h2 className="section__title results__title-text">{resultsHeading}</h2>
+        {!isSearching && books.length > 0 && (
+          <span className="results__count-badge">
+            {language === "ru" ? `Найдено: ${books.length}` : `Found: ${books.length}`}
+          </span>
+        )}
+      </div>
 
       {initialLoading && (
         <div className="results__loader">
@@ -235,15 +315,28 @@ export default function SearchResults() {
           <p className="results__empty-text">{t("search.nothingFound")}</p>
           <div className="results__suggestions">
             <span className="results__suggestions-title">
-              {language === "ru" ? "Популярные запросы:" : "Popular searches:"}
+              {language === "ru" ? "Попробуйте поискать:" : "Try searching for:"}
             </span>
             <div className="results__tags">
-              {["Майор Гром", "Габрелянов", "Дмитриева", "Носов", "Достоевский", "BUBBLE", "АСТ"].map((tag) => (
+              {[
+                "Майор Гром",
+                "Габрелянов",
+                "Дмитриева",
+                "Носов",
+                "Сказки",
+                "Незнайка",
+                "Гарри Поттер",
+                "BUBBLE",
+                "АСТ",
+              ].map((tag) => (
                 <button
                   key={tag}
                   type="button"
                   className="results__tag-btn"
-                  onClick={() => navigate(`/search?q=${encodeURIComponent(tag)}`)}
+                  onClick={() => {
+                    setInputVal(tag);
+                    navigate(`/search?q=${encodeURIComponent(tag)}`);
+                  }}
                 >
                   {tag}
                 </button>

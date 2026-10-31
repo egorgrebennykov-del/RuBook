@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import CarouselControls from "../carouselcontrols/CarouselControls";
 import getHomepageBooks, { getCachedHomepageBooks } from "../../../utils/getHomepageBooks";
 import BookImage from "../common/BookImage";
@@ -28,8 +28,10 @@ function isStoreLabel(value) {
 }
 
 export default function Home() {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
   const [books, setBooks] = useState(() => getCachedHomepageBooks() ?? []);
   const [booksError, setBooksError] = useState(false);
   const [booksReady, setBooksReady] = useState(() => Boolean(getCachedHomepageBooks()));
@@ -85,6 +87,13 @@ export default function Home() {
     });
   }, [booksReady, location.state]);
 
+  const handleHomeSearch = (e) => {
+    e.preventDefault();
+    const text = searchQuery.trim();
+    if (!text) return;
+    navigate(`/search?q=${encodeURIComponent(text)}`);
+  };
+
   return (
     <section className="home section" id="home">
       {/* Top Small Announcements Stack */}
@@ -101,7 +110,22 @@ export default function Home() {
         <div className="home__data">
           <h1 className="home__title">{t("home.title")}</h1>
           <p className="home__description">{t("home.description")}</p>
-          <Link to="/featured" className="button">
+
+          <form className="home__search" onSubmit={handleHomeSearch}>
+            <i className="ri-search-line home__search-icon" />
+            <input
+              type="search"
+              className="home__search-input"
+              placeholder={language === "ru" ? "Найти книгу, автора, серию..." : "Search by title, author, series..."}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <button type="submit" className="button home__search-button">
+              {language === "ru" ? "Найти" : "Search"}
+            </button>
+          </form>
+
+          <Link to="/featured" className="button button--secondary home__catalog-btn">
             {t("home.startShopping")}
           </Link>
         </div>

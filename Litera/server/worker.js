@@ -195,24 +195,34 @@ function resolveHighResImageUrl(sourceUrl) {
 
 const yandexPreviewCache = new Map();
 
+function getWorkerWordStem(word) {
+  if (!word || word.length < 4) return word;
+  const stem = word.replace(
+    /(?:ами|ями|ого|его|ому|ему|ыми|ими|ным|ним|ная|ное|ные|ных|ной|ней|ский|ская|ское|ские|ских|ской|ского|ов|ев|ей|ам|ям|ах|ях|ом|ем|ой|ей|ия|ию|ии|ие|а|я|ы|и|е|у|ю|о)$/iu,
+    ""
+  );
+  return stem.length >= 3 ? stem : word;
+}
+
 function buildWorkerSearchOr(query) {
   const raw = (query || "").trim();
   const tokens = raw.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
   if (!tokens.length) return "";
 
+  const cleanPhrase = tokens.join(" ");
   const conditions = [];
-  const fields = [
+  const textFields = [
     "name",
     "publisher",
     "info->>author",
     "info->>series",
     "info->>genre",
-    "info->>isbn",
-    "info->>code",
   ];
 
-  for (const f of fields) {
-    conditions.push(`${f}.ilike.*${raw}*`);
+  if (cleanPhrase.length >= 2) {
+    for (const f of textFields) {
+      conditions.push(`${f}.ilike.*${cleanPhrase}*`);
+    }
   }
 
   if (tokens.length > 1) {
@@ -221,11 +231,23 @@ function buildWorkerSearchOr(query) {
     conditions.push(`name.ilike.${fwd}`, `name.ilike.${rev}`);
     conditions.push(`info->>author.ilike.${fwd}`, `info->>author.ilike.${rev}`);
     conditions.push(`info->>series.ilike.${fwd}`, `info->>series.ilike.${rev}`);
-    for (const t of tokens) {
-      if (t.length >= 3) {
-        conditions.push(`name.ilike.*${t}*`);
-        conditions.push(`info->>author.ilike.*${t}*`);
-      }
+  }
+
+  const processedTokens = new Set();
+  for (const t of tokens) {
+    if (t.length >= 2) processedTokens.add(t);
+    const stem = getWorkerWordStem(t);
+    if (stem.length >= 3) processedTokens.add(stem);
+  }
+
+  for (const term of processedTokens) {
+    conditions.push(`name.ilike.*${term}*`);
+    conditions.push(`info->>author.ilike.*${term}*`);
+    conditions.push(`info->>series.ilike.*${term}*`);
+    if (term.length >= 3) {
+      conditions.push(`publisher.ilike.*${term}*`);
+      conditions.push(`info->>code.ilike.*${term}*`);
+      conditions.push(`info->>isbn.ilike.*${term}*`);
     }
   }
 

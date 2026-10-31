@@ -26,41 +26,62 @@ const headers = {
 export const tokenize = (s) =>
   (s || "").toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 
+export function getWordStem(word) {
+  if (!word || word.length < 4) return word;
+  const stem = word.replace(
+    /(?:ами|ями|ого|его|ому|ему|ыми|ими|ным|ним|ная|ное|ные|ных|ной|ней|ский|ская|ское|ские|ских|ской|ского|ов|ев|ей|ам|ям|ах|ях|ом|ем|ой|ей|ия|ию|ии|ие|а|я|ы|и|е|у|ю|о)$/iu,
+    ""
+  );
+  return stem.length >= 3 ? stem : word;
+}
+
 export function buildOrQuery(query) {
-  const raw = (query || "").trim();
-  const tokens = tokenize(raw);
+  const tokens = tokenize(query);
   if (!tokens.length) return "";
 
+  const cleanPhrase = tokens.join(" ");
   const conditions = [];
-  const fields = [
+
+  const textFields = [
     "name",
     "publisher",
     "info->>author",
     "info->>series",
     "info->>genre",
-    "info->>isbn",
-    "info->>code",
   ];
 
-  // 1. Full phrase across fields
-  for (const f of fields) {
-    conditions.push(`${f}.ilike.*${raw}*`);
+  // 1. Safe phrase match (only letters and numbers with spaces)
+  if (cleanPhrase.length >= 2) {
+    for (const f of textFields) {
+      conditions.push(`${f}.ilike.*${cleanPhrase}*`);
+    }
   }
 
-  // 2. If multiple tokens, add forward & reverse joined wildcards
+  // 2. Token joined wildcards for multi-word phrases
   if (tokens.length > 1) {
     const fwd = `*${tokens.join("*")}*`;
     const rev = `*${[...tokens].reverse().join("*")}*`;
     conditions.push(`name.ilike.${fwd}`, `name.ilike.${rev}`);
     conditions.push(`info->>author.ilike.${fwd}`, `info->>author.ilike.${rev}`);
     conditions.push(`info->>series.ilike.${fwd}`, `info->>series.ilike.${rev}`);
+  }
 
-    // Also each token (>= 3 chars) across name and author
-    for (const t of tokens) {
-      if (t.length >= 3) {
-        conditions.push(`name.ilike.*${t}*`);
-        conditions.push(`info->>author.ilike.*${t}*`);
-      }
+  // 3. Stems and individual tokens across fields
+  const processedTokens = new Set();
+  for (const t of tokens) {
+    if (t.length >= 2) processedTokens.add(t);
+    const stem = getWordStem(t);
+    if (stem.length >= 3) processedTokens.add(stem);
+  }
+
+  for (const term of processedTokens) {
+    conditions.push(`name.ilike.*${term}*`);
+    conditions.push(`info->>author.ilike.*${term}*`);
+    conditions.push(`info->>series.ilike.*${term}*`);
+    if (term.length >= 3) {
+      conditions.push(`publisher.ilike.*${term}*`);
+      conditions.push(`info->>code.ilike.*${term}*`);
+      conditions.push(`info->>isbn.ilike.*${term}*`);
     }
   }
 
@@ -91,9 +112,9 @@ export function calculateRelevance(item, query) {
   const code = (item.code || item.info?.code || "").toLowerCase();
   const isbn = (item.isbn || item.info?.isbn || "").toLowerCase();
 
-  // 1. Exact matches
+  // 1. Exact phrase matches
   if (title === q) return 100;
-  if (author === q || author.startsWith(q + " ") || author.includes(" " + q)) return 95;
+  if (author === q || author.startsWith(q + " ") || author.includes(" " + q)) return 96;
   if (title.startsWith(q)) return 92;
   if (title.includes(q)) return 88;
   if (series === q || series.includes(q)) return 82;
@@ -112,9 +133,16 @@ export function calculateRelevance(item, query) {
   let anyMatches = 0;
 
   for (const token of qTokens) {
-    const inTitle = tTokens.has(token) || [...tTokens].some((t) => t.includes(token));
-    const inAuthor = aTokens.has(token) || [...aTokens].some((a) => a.includes(token));
-    const inSeries = sTokens.has(token) || [...sTokens].some((s) => s.includes(token));
+    const stem = getWordStem(token);
+    const inTitle =
+      tTokens.has(token) ||
+      [...tTokens].some((t) => t.includes(token) || (stem && t.includes(stem)));
+    const inAuthor =
+      aTokens.has(token) ||
+      [...aTokens].some((a) => a.includes(token) || (stem && a.includes(stem)));
+    const inSeries =
+      sTokens.has(token) ||
+      [...sTokens].some((s) => s.includes(token) || (stem && s.includes(stem)));
 
     if (inTitle) titleMatches++;
     if (inTitle || inAuthor || inSeries) anyMatches++;
@@ -176,7 +204,9 @@ export default async function searchBooks(searchBook, options = {}) {
 
     if (query) {
       const orCondition = buildOrQuery(query);
-      url = `${TABLE_URL}?select=id,name,price,publisher,image,info&or=${encodeURIComponent(orCondition)}&order=id.asc&limit=150`;
+      if (orCondition) {
+        url = `${TABLE_URL}?select=id,name,price,publisher,image,info&or=${encodeURIComponent(orCondition)}&order=id.asc&limit=150`;
+      }
     }
 
     const response = await fetch(url, { headers });
