@@ -73,7 +73,7 @@ export default async function getBookDetails(idOrUrl) {
       if (series) parts.push(`в серии «${series}»`);
       description = `${parts.join(" ")}.`;
       if (genre) description += ` Категория / жанр: ${genre}.`;
-      description += ` Издание доступно к заказу в каталоге Litera с быстрой доставкой и гарантией качества от поставщика Transbaltik.`;
+      description += ` Издание доступно к заказу в каталоге Litera с быстрой доставкой и гарантией качества.`;
     }
 
     const additionalProperties = [];
@@ -83,12 +83,10 @@ export default async function getBookDetails(idOrUrl) {
     if (isbn) additionalProperties.push({ name: "ISBN", value: isbn });
     if (series) additionalProperties.push({ name: "Серия", value: series });
     if (genre) additionalProperties.push({ name: "Жанр", value: genre });
-    if (code) additionalProperties.push({ name: "Артикул", value: code });
     if (pages) additionalProperties.push({ name: "Количество страниц", value: pages });
     if (binding) additionalProperties.push({ name: "Переплет", value: binding });
     if (format) additionalProperties.push({ name: "Формат", value: format });
     if (age) additionalProperties.push({ name: "Возраст", value: age });
-    additionalProperties.push({ name: "Поставщик", value: "Transbaltik" });
 
     return {
       id: row.id,

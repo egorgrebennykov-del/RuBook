@@ -285,6 +285,8 @@ async function run() {
   const catalogList = JSON.parse(fs.readFileSync(parsedFile, 'utf8'));
   console.log(`Loaded ${catalogList.length} catalogs from pricelists_parsed.json`);
 
+  const EXCLUDED_KEYWORDS = ['mnogoknig', 'бимбимон', '4games', 'bimbimon'];
+
   // Track already inserted publishers to avoid duplicates
   const processedStats = [];
   let totalInsertedAll = 0;
@@ -294,6 +296,11 @@ async function run() {
     const rawName = item.name.replace(/^!\s*/, '').trim();
     const cleanPubName = rawName.replace(/\s*\([^)]*\)\s*$/, '').trim();
     const fileUrl = item.url;
+
+    if (EXCLUDED_KEYWORDS.some(kw => rawName.toLowerCase().includes(kw) || (fileUrl && fileUrl.toLowerCase().includes(kw)))) {
+      console.log(`[${idx + 1}/${catalogList.length}] Skipping explicitly excluded catalog: ${cleanPubName}`);
+      continue;
+    }
 
     if (!fileUrl || !fileUrl.startsWith('https://www.transbaltik.ru/uploads/pricelists/')) {
       console.log(`[${idx + 1}/${catalogList.length}] Skipping external/invalid URL: ${cleanPubName}`);
@@ -344,10 +351,30 @@ async function run() {
         continue;
       }
 
-      // Deduplicate inside catalog
+      // Deduplicate inside catalog by clean ISBN (keeping cheapest), then by name + publisher
+      const isbnMap = new Map();
+      const withoutIsbn = [];
+
+      for (const b of allCatalogBooks) {
+        const rawIsbn = b.info?.isbn || '';
+        const cleanIsbn = String(rawIsbn).replace(/[^0-9X]/gi, '').toUpperCase();
+        if (cleanIsbn.length === 10 || cleanIsbn.length === 13) {
+          if (!isbnMap.has(cleanIsbn)) {
+            isbnMap.set(cleanIsbn, b);
+          } else {
+            const existing = isbnMap.get(cleanIsbn);
+            if (Number(b.price) < Number(existing.price)) {
+              isbnMap.set(cleanIsbn, b); // keep cheapest
+            }
+          }
+        } else {
+          withoutIsbn.push(b);
+        }
+      }
+
       const uniqueBooks = [];
       const seen = new Set();
-      for (const b of allCatalogBooks) {
+      for (const b of [...isbnMap.values(), ...withoutIsbn]) {
         const k = `${b.name}:::${b.publisher}`.toLowerCase();
         if (!seen.has(k)) {
           seen.add(k);

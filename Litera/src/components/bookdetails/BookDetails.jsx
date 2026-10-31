@@ -11,7 +11,7 @@ import { useLanguage } from "../../context/languageContext";
 import "./BookDetails.css";
 
 const HIDDEN_PROPERTIES =
-  /^(?:вы экономите|иллюстрированное издание|тираж)$/i;
+  /^(?:вы экономите|иллюстрированное издание|тираж|артикул|поставщик|supplier|sku|код|код товара|код продукта)$/i;
 
 const CANONICAL_PROPERTY_MAP = {
   // Author
@@ -354,6 +354,9 @@ export default function BookDetails() {
     .filter(
       (p) =>
         !HIDDEN_PROPERTIES.test(p.name) &&
+        !HIDDEN_PROPERTIES.test(p.groupKey) &&
+        p.groupKey !== "supplier" &&
+        p.groupKey !== "code" &&
         !seenKeys.has(p.groupKey) &&
         seenKeys.add(p.groupKey),
     );

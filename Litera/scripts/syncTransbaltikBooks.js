@@ -320,9 +320,14 @@ export async function syncTransbaltik() {
   fs.mkdirSync(publicDir, { recursive: true });
   fs.writeFileSync(path.join(publicDir, 'catalog-status.json'), JSON.stringify(catalogStatus, null, 2));
 
+  const EXCLUDED_KEYWORDS = ['mnogoknig', 'бимбимон', '4games', 'bimbimon'];
+
   // 5. Select catalogs to sync: covers all publishers from Transbaltik pricelists
   const targetCatalogs = pricelists.filter((p) => {
     if (!p.url || !p.url.startsWith('https://www.transbaltik.ru/uploads/pricelists/')) return false;
+    const nameLow = (p.name || '').toLowerCase();
+    const urlLow = p.url.toLowerCase();
+    if (EXCLUDED_KEYWORDS.some(kw => nameLow.includes(kw) || urlLow.includes(kw))) return false;
     const ext = path.extname(p.url).toLowerCase();
     if (ext !== '.xlsx' && ext !== '.xls') return false;
     // Skip massive files > 25MB to avoid runner out-of-memory
@@ -364,12 +369,38 @@ export async function syncTransbaltik() {
 
   console.log(`[Sync] Total books parsed from catalogs: ${allBooksToInsert.length}`);
 
-  // Deduplicate by name + publisher
-  const uniqueMap = new Map();
+  // Deduplicate by ISBN: if same ISBN exists, keep the lowest-priced book
+  const isbnMap = new Map();
+  const withoutIsbn = [];
+
   for (const b of allBooksToInsert) {
+    const rawIsbn = b.info?.isbn || '';
+    const cleanIsbn = String(rawIsbn).replace(/[^0-9X]/gi, '').toUpperCase();
+    if (cleanIsbn.length === 10 || cleanIsbn.length === 13) {
+      if (!isbnMap.has(cleanIsbn)) {
+        isbnMap.set(cleanIsbn, b);
+      } else {
+        const existing = isbnMap.get(cleanIsbn);
+        if (Number(b.price) < Number(existing.price)) {
+          isbnMap.set(cleanIsbn, b); // keep cheapest
+        }
+      }
+    } else {
+      withoutIsbn.push(b);
+    }
+  }
+
+  // Deduplicate remaining by name + publisher
+  const uniqueMap = new Map();
+  for (const b of [...isbnMap.values(), ...withoutIsbn]) {
     const key = `${b.name}:::${b.publisher}`.toLowerCase();
     if (!uniqueMap.has(key)) {
       uniqueMap.set(key, b);
+    } else {
+      const existing = uniqueMap.get(key);
+      if (Number(b.price) < Number(existing.price)) {
+        uniqueMap.set(key, b);
+      }
     }
   }
   const uniqueBooks = Array.from(uniqueMap.values());
