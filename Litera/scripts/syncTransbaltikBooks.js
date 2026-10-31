@@ -329,6 +329,7 @@ export async function syncTransbaltik() {
       n.includes('карьера пресс') ||
       n.includes('мелик-пашаев') ||
       n.includes('азбука') ||
+      n.includes('альпина') ||
       n.includes('аст') ||
       n.includes('эксмо') ||
       n.includes('проф-пресс') ||
