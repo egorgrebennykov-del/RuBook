@@ -149,12 +149,6 @@
   font-weight: 700;
 }
 
-.book__price-rub {
-  font-size: 1.15rem;
-  font-weight: 500;
-  opacity: 0.75;
-  color: var(--text-color);
-}
 
 .book__add-cart {
   display: inline-flex;

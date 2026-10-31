@@ -11,38 +11,20 @@ import "./SearchResults.css";
 
 const loadingMessages = {
   ru: [
-    "Опрашиваем книжные магазины",
-    "Ищем ваши книги",
-    "Сравниваем цены",
-    "Просматриваем каталоги",
-    "Ищем лучшие предложения",
-    "Проверяем наличие книг",
-    "Собираем цены из магазинов",
-    "Сравниваем издания",
-    "Ищем самые выгодные цены",
-    "Почти готово",
-    "Проверяем каталоги магазинов",
-    "Ищем лучшие варианты",
-    "Уточняем свежие предложения",
+    "Ищем книги в каталоге",
+    "Проверяем авторов и серии",
+    "Ищем по издательствам Transbaltik",
+    "Подбираем подходящие издания",
     "Формируем результаты поиска",
-    "Подбираем для вас книги",
+    "Почти готово",
   ],
   en: [
-    "Checking bookstores",
-    "Searching for your books",
-    "Comparing prices",
-    "Browsing book catalogs",
-    "Finding the best deals",
-    "Checking book availability",
-    "Collecting prices from stores",
-    "Comparing book editions",
-    "Looking for the lowest prices",
-    "Almost there",
-    "Exploring bookstore listings",
-    "Hunting for the best deals",
-    "Checking the latest offers",
+    "Searching book catalog",
+    "Checking authors and series",
+    "Scanning Transbaltik publisher listings",
+    "Finding matching editions",
     "Gathering search results",
-    "Finding your next read",
+    "Almost ready",
   ],
 };
 
@@ -248,7 +230,28 @@ export default function SearchResults() {
           <LoadingMessage language={language} />
         </div>
       )}
-      {!isSearching && books.length === 0 && <p>{t("search.nothingFound")}</p>}
+      {!isSearching && books.length === 0 && (
+        <div className="results__empty-wrap">
+          <p className="results__empty-text">{t("search.nothingFound")}</p>
+          <div className="results__suggestions">
+            <span className="results__suggestions-title">
+              {language === "ru" ? "Популярные запросы:" : "Popular searches:"}
+            </span>
+            <div className="results__tags">
+              {["Майор Гром", "Габрелянов", "Дмитриева", "Носов", "Достоевский", "BUBBLE", "АСТ"].map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  className="results__tag-btn"
+                  onClick={() => navigate(`/search?q=${encodeURIComponent(tag)}`)}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {cartError && (
         <p className="results__cart-error" role="alert">
           {cartError}

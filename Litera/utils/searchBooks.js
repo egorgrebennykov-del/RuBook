@@ -1,5 +1,3 @@
-import getExchangeRate, { DEFAULT_RATE, getCachedExchangeRate } from "./getExchangeRate.js";
-import dedupeBooks from "./dedupeBooks.js";
 import decodeHtmlEntities from "./decodeHtmlEntities.js";
 
 const env =
@@ -25,7 +23,49 @@ const headers = {
   "Content-Type": "application/json",
 };
 
-const tokenize = (s) => (s || "").toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+export const tokenize = (s) =>
+  (s || "").toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+
+export function buildOrQuery(query) {
+  const raw = (query || "").trim();
+  const tokens = tokenize(raw);
+  if (!tokens.length) return "";
+
+  const conditions = [];
+  const fields = [
+    "name",
+    "publisher",
+    "info->>author",
+    "info->>series",
+    "info->>genre",
+    "info->>isbn",
+    "info->>code",
+  ];
+
+  // 1. Full phrase across fields
+  for (const f of fields) {
+    conditions.push(`${f}.ilike.*${raw}*`);
+  }
+
+  // 2. If multiple tokens, add forward & reverse joined wildcards
+  if (tokens.length > 1) {
+    const fwd = `*${tokens.join("*")}*`;
+    const rev = `*${[...tokens].reverse().join("*")}*`;
+    conditions.push(`name.ilike.${fwd}`, `name.ilike.${rev}`);
+    conditions.push(`info->>author.ilike.${fwd}`, `info->>author.ilike.${rev}`);
+    conditions.push(`info->>series.ilike.${fwd}`, `info->>series.ilike.${rev}`);
+
+    // Also each token (>= 3 chars) across name and author
+    for (const t of tokens) {
+      if (t.length >= 3) {
+        conditions.push(`name.ilike.*${t}*`);
+        conditions.push(`info->>author.ilike.*${t}*`);
+      }
+    }
+  }
+
+  return `(${conditions.join(",")})`;
+}
 
 export function isCoreWorkMatch(title, query) {
   const queryTokens = tokenize(query);
@@ -41,23 +81,52 @@ export function isCoreWorkMatch(title, query) {
 }
 
 export function calculateRelevance(item, query) {
-  const title = (item.title || item.name || "").toLowerCase();
   const q = (query || "").toLowerCase().trim();
   if (!q) return 50;
 
-  if (title === q) return 100;
-  if (title.startsWith(q)) return 90;
-  if (isCoreWorkMatch(title, q)) return 85;
-  if (title.includes(q)) return 75;
+  const title = (item.title || item.name || "").toLowerCase();
+  const author = (item.author || item.info?.author || "").toLowerCase();
+  const series = (item.series || item.info?.series || "").toLowerCase();
+  const publisher = (item.publisher || "").toLowerCase();
+  const code = (item.code || item.info?.code || "").toLowerCase();
+  const isbn = (item.isbn || item.info?.isbn || "").toLowerCase();
 
+  // 1. Exact matches
+  if (title === q) return 100;
+  if (author === q || author.startsWith(q + " ") || author.includes(" " + q)) return 95;
+  if (title.startsWith(q)) return 92;
+  if (title.includes(q)) return 88;
+  if (series === q || series.includes(q)) return 82;
+  if (publisher === q || publisher.includes(q)) return 78;
+  if (code.includes(q) || isbn.includes(q)) return 85;
+
+  // 2. Tokenized match
   const qTokens = tokenize(q);
+  if (!qTokens.length) return 50;
+
   const tTokens = new Set(tokenize(title));
-  let matched = 0;
+  const aTokens = new Set(tokenize(author));
+  const sTokens = new Set(tokenize(series));
+
+  let titleMatches = 0;
+  let anyMatches = 0;
+
   for (const token of qTokens) {
-    if (tTokens.has(token)) matched++;
+    const inTitle = tTokens.has(token) || [...tTokens].some((t) => t.includes(token));
+    const inAuthor = aTokens.has(token) || [...aTokens].some((a) => a.includes(token));
+    const inSeries = sTokens.has(token) || [...sTokens].some((s) => s.includes(token));
+
+    if (inTitle) titleMatches++;
+    if (inTitle || inAuthor || inSeries) anyMatches++;
   }
-  const ratio = qTokens.length ? matched / qTokens.length : 0;
-  return Math.round(ratio * 70);
+
+  // All tokens matched in title
+  if (titleMatches === qTokens.length) return 86;
+  // All tokens matched across title, author, or series
+  if (anyMatches === qTokens.length) return 80;
+
+  const ratio = anyMatches / qTokens.length;
+  return Math.round(ratio * 65);
 }
 
 function rankAndSort(books, query) {
@@ -73,18 +142,16 @@ function rankAndSort(books, query) {
   });
 }
 
-function normalizeDbBook(row, rate = DEFAULT_RATE) {
+function normalizeDbBook(row) {
   if (!row) return null;
   const info = row.info || {};
   const eurPrice = Number(row.price) > 0 ? Number(row.price) : 5.99;
-  const rubPrice = Number(info.price_rub) > 0 ? Number(info.price_rub) : Math.round(eurPrice * rate);
 
   return {
     id: row.id,
     title: decodeHtmlEntities(row.name || "Книга без названия"),
     price: eurPrice,
     currency: "EUR",
-    price_rub: rubPrice,
     url: `/book/${row.id}`,
     image: row.image || null,
     store: row.publisher || "Transbaltik",
@@ -96,22 +163,20 @@ function normalizeDbBook(row, rate = DEFAULT_RATE) {
     series: info.series || "",
     genre: info.genre || "",
     description: info.description || "",
-    source: info.source || "https://www.transbaltik.ru/pricelists"
+    source: info.source || "https://www.transbaltik.ru/pricelists",
   };
 }
 
 export default async function searchBooks(searchBook, options = {}) {
   const query = (searchBook || "").trim();
   const onProgress = typeof options === "function" ? options : options.onProgress;
-  const activeRate = getCachedExchangeRate() || DEFAULT_RATE;
 
   try {
     let url = `${TABLE_URL}?select=id,name,price,publisher,image,info&order=id.asc&limit=100`;
 
     if (query) {
-      const clean = encodeURIComponent(`*${query}*`);
-      // Search in name or publisher
-      url = `${TABLE_URL}?select=id,name,price,publisher,image,info&or=(name.ilike.${clean},publisher.ilike.${clean})&order=id.asc&limit=150`;
+      const orCondition = buildOrQuery(query);
+      url = `${TABLE_URL}?select=id,name,price,publisher,image,info&or=${encodeURIComponent(orCondition)}&order=id.asc&limit=150`;
     }
 
     const response = await fetch(url, { headers });
@@ -121,7 +186,7 @@ export default async function searchBooks(searchBook, options = {}) {
     }
 
     const rows = await response.json();
-    const normalized = (rows || []).map((r) => normalizeDbBook(r, activeRate));
+    const normalized = (rows || []).map((r) => normalizeDbBook(r));
 
     const sorted = rankAndSort(normalized, query);
     if (typeof onProgress === "function") {

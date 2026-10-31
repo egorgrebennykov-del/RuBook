@@ -128,17 +128,25 @@ function validImageUrl(value) {
   }
 }
 
+const nodeYandexPreviewCache = new Map();
+
 async function fetchSourceImage(sourceUrl) {
   let currentUrl = sourceUrl;
   if (currentUrl.includes("disk.yandex.ru/i/")) {
-    try {
-      const yApi = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(currentUrl)}`;
-      const yRes = await axios.get(yApi, { timeout: 8000 });
-      if (yRes.data?.preview || yRes.data?.file) {
-        currentUrl = yRes.data.preview || yRes.data.file;
+    const cached = nodeYandexPreviewCache.get(currentUrl);
+    if (cached && Date.now() - cached.time < 12 * 3600 * 1000) {
+      currentUrl = cached.url;
+    } else {
+      try {
+        const yApi = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(currentUrl)}&preview_size=L`;
+        const yRes = await axios.get(yApi, { timeout: 8000 });
+        if (yRes.data?.preview || yRes.data?.file) {
+          currentUrl = yRes.data.preview || yRes.data.file;
+          nodeYandexPreviewCache.set(sourceUrl, { url: currentUrl, time: Date.now() });
+        }
+      } catch {
+        // fallback
       }
-    } catch {
-      // fallback
     }
   }
   for (let redirects = 0; redirects <= 3; redirects++) {
@@ -275,7 +283,6 @@ const server = createServer(async (req, res) => {
     } catch {
       respond(res, 200, {
         latest_catalog_update: "2026-10-30 16:44:35",
-        eur_rub_rate: 84.0,
         total_catalogs: 210,
       });
     }

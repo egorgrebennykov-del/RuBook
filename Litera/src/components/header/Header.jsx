@@ -6,7 +6,6 @@ import {
 import { useLanguage } from "../../context/languageContext";
 import { useAuth } from "../../context/AuthContext";
 import { fetchUserInquiry, fetchAdminUnreadCount } from "../../../utils/inquiries";
-import { getCatalogStatus } from "../../../utils/catalogStatus";
 import "./Header.css";
 
 const MessengerModal = lazy(() => import("../messenger/MessengerModal"));
@@ -32,13 +31,6 @@ export default function Header({ theme, isLight, onSearch }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [adminUnreadCount, setAdminUnreadCount] = useState(0);
   const [adminAttention, setAdminAttention] = useState(false);
-  const [catalogInfo, setCatalogInfo] = useState(null);
-
-  useEffect(() => {
-    getCatalogStatus()
-      .then((data) => setCatalogInfo(data))
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     const onRefer = () => setAdminAttention(true);
@@ -197,32 +189,6 @@ export default function Header({ theme, isLight, onSearch }) {
           </ul>
         </div>
         <div className="nav__actions">
-          <span
-            className="nav__rate-badge"
-            title={
-              catalogInfo?.latest_catalog_update
-                ? `Прайс-листы Transbaltik обновлены: ${catalogInfo.latest_catalog_update}\nКурс: 1 € = ${catalogInfo.eur_rub_rate} ₽\nВсего каталогов: ${catalogInfo.total_catalogs || 210}`
-                : `Курс EUR/RUB: 84.00 ₽`
-            }
-            style={{
-              fontSize: "0.78rem",
-              fontWeight: 600,
-              padding: "0.25rem 0.6rem",
-              borderRadius: "0.5rem",
-              background: "var(--container-color)",
-              border: "1px solid var(--border-color)",
-              color: "var(--title-color)",
-              whiteSpace: "nowrap",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.25rem",
-              cursor: "help",
-            }}
-          >
-            <i className="ri-exchange-line" style={{ color: "var(--first-color)" }} />
-            1 € = {catalogInfo?.eur_rub_rate || 84} ₽
-          </span>
-
           <button
             type="button"
             className="nav__lang-toggle"

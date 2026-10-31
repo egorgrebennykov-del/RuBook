@@ -104,8 +104,7 @@ const CANONICAL_PROPERTY_MAP = {
   "вес (г)": { ru: "Вес", en: "Weight", key: "weight" },
   weight: { ru: "Вес", en: "Weight", key: "weight" },
 
-  // Supplier & RUB price
-  "цена в рублях": { ru: "Цена в рублях", en: "Price (RUB)", key: "price_rub" },
+  // Supplier
   поставщик: { ru: "Поставщик", en: "Supplier", key: "supplier" },
 };
 
@@ -234,8 +233,6 @@ export default function BookDetails() {
   if (eurVal != null) {
     price = formatPrice(eurVal, "EUR", language);
   }
-
-  const rubPrice = product?.price_rub || (eurVal ? Math.round(eurVal * activeRate) : null);
 
   const descSource = decodeHtmlEntities(
     product?.description || product?.descriptionHtml || "",
@@ -553,12 +550,9 @@ export default function BookDetails() {
               )}
             </div>
 
-            {/* Price in EUR with converted RUB equivalent */}
+            {/* Price in EUR */}
             <div className="book__price-container">
               {price && <span className="book__price">{price}</span>}
-              {rubPrice && (
-                <span className="book__price-rub"> (~ {rubPrice} ₽)</span>
-              )}
             </div>
             {pendingAddUrl === url && !addedToCart ? (
               <div className="book__quantity-control">

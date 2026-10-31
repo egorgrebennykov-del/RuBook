@@ -20,7 +20,7 @@ async function run() {
   console.log("Fetching books from Supabase...");
   // Prefer books with real images first (AST, Bubble, etc.)
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/books?select=id,name,price,publisher,image,info&limit=500`,
+    `${SUPABASE_URL}/rest/v1/books?select=id,name,price,publisher,image,info&limit=2000`,
     { headers }
   );
   const allBooks = await res.json();

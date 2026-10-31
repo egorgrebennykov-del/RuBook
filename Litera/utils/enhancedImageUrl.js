@@ -13,8 +13,13 @@ export default function enhancedImageUrl(sourceUrl) {
 
   let resolved = sourceUrl.trim();
 
-  // AST book redirect links or codes
-  const astCodeMatch = resolved.match(/(ASE\d{12,18})/i);
+  // go.ast.ru are HTML redirect pages, not direct images
+  if (resolved.includes("go.ast.ru/")) {
+    return "";
+  }
+
+  // AST book redirect links or codes (ASE or AST prefix)
+  const astCodeMatch = resolved.match(/(AS[ET]\d{6,18})/i);
   if (astCodeMatch) {
     return `https://cdn.ast.ru/v2/${astCodeMatch[1].toUpperCase()}/COVER/cover1__w340.jpg`;
   }

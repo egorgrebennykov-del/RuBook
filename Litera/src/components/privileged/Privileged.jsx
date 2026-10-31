@@ -5144,7 +5144,7 @@ export default function Privileged() {
               {[
                 {
                   id: "sync-transbaltik-books",
-                  title: "Синхронизация каталогов Transbaltik & курс EUR/RUB",
+                  title: "Синхронизация каталогов Transbaltik",
                   file: ".github/workflows/sync-transbaltik-books.yml",
                   descKey: "privileged.gitActions.wfExchangeRateDesc",
                   icon: "ri-refresh-line",

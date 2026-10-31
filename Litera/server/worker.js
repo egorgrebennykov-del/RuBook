@@ -193,11 +193,51 @@ function resolveHighResImageUrl(sourceUrl) {
   return target;
 }
 
+const yandexPreviewCache = new Map();
+
+function buildWorkerSearchOr(query) {
+  const raw = (query || "").trim();
+  const tokens = raw.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  if (!tokens.length) return "";
+
+  const conditions = [];
+  const fields = [
+    "name",
+    "publisher",
+    "info->>author",
+    "info->>series",
+    "info->>genre",
+    "info->>isbn",
+    "info->>code",
+  ];
+
+  for (const f of fields) {
+    conditions.push(`${f}.ilike.*${raw}*`);
+  }
+
+  if (tokens.length > 1) {
+    const fwd = `*${tokens.join("*")}*`;
+    const rev = `*${[...tokens].reverse().join("*")}*`;
+    conditions.push(`name.ilike.${fwd}`, `name.ilike.${rev}`);
+    conditions.push(`info->>author.ilike.${fwd}`, `info->>author.ilike.${rev}`);
+    conditions.push(`info->>series.ilike.${fwd}`, `info->>series.ilike.${rev}`);
+    for (const t of tokens) {
+      if (t.length >= 3) {
+        conditions.push(`name.ilike.*${t}*`);
+        conditions.push(`info->>author.ilike.*${t}*`);
+      }
+    }
+  }
+
+  return `(${conditions.join(",")})`;
+}
+
 async function handleEnhanceImage(request, urlObj, ctx) {
   const sourceUrl = urlObj.searchParams.get("url") || "";
   if (!sourceUrl) {
     return jsonResponse({ error: "Invalid image URL" }, 400);
   }
+
   const cache = globalThis.caches?.default;
   if (cache) {
     try {
@@ -207,53 +247,47 @@ async function handleEnhanceImage(request, urlObj, ctx) {
       // ignore cache read errors
     }
   }
+
   let resolved = resolveHighResImageUrl(sourceUrl);
+
+  // AST code pattern: ASE or AST followed by digits
+  const astMatch = resolved.match(/(AS[ET]\d{6,18})/i);
+  if (astMatch) {
+    resolved = `https://cdn.ast.ru/v2/${astMatch[1].toUpperCase()}/COVER/cover1__w340.jpg`;
+    return Response.redirect(resolved, 302);
+  }
+
+  // Yandex Disk public view links
   if (resolved.includes("disk.yandex.ru/i/")) {
+    const cachedYandex = yandexPreviewCache.get(resolved);
+    if (cachedYandex && Date.now() - cachedYandex.time < 12 * 3600 * 1000) {
+      return Response.redirect(cachedYandex.url, 302);
+    }
+
     try {
-      const yApi = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(resolved)}`;
+      const yApi = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(resolved)}&preview_size=L`;
       const yRes = await fetch(yApi);
       if (yRes.ok) {
         const yData = await yRes.json();
-        if (yData?.preview || yData?.file) {
-          resolved = yData.preview || yData.file;
+        const previewUrl = yData?.preview || yData?.file;
+        if (previewUrl) {
+          yandexPreviewCache.set(resolved, { url: previewUrl, time: Date.now() });
+          return Response.redirect(previewUrl, 302);
         }
       }
     } catch {
       // fallback
     }
+
+    return jsonResponse({ error: "Image not available on storage" }, 404);
   }
-  try {
-    const parsed = new URL(resolved);
-    const res = await fetch(resolved, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Referer: `${parsed.protocol}//${parsed.host}/`,
-        Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-      },
-    });
-    if (!res.ok) {
-      return Response.redirect(resolved, 302);
-    }
-    const response = new Response(res.body, {
-      status: 200,
-      headers: {
-        "Content-Type": res.headers.get("content-type") || "image/jpeg",
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
-    });
-    if (cache) {
-      try {
-        const putTask = cache.put(request, response.clone());
-        if (ctx?.waitUntil) ctx.waitUntil(putTask);
-      } catch {
-        // ignore cache write errors
-      }
-    }
-    return response;
-  } catch {
-    return jsonResponse({ error: "Could not load image" }, 502);
+
+  // Direct fast redirect for external HTTP images
+  if (resolved.startsWith("http://") || resolved.startsWith("https://")) {
+    return Response.redirect(resolved, 302);
   }
+
+  return jsonResponse({ error: "Could not load image" }, 404);
 }
 
 export default {
@@ -289,7 +323,6 @@ export default {
     if (method === "GET" && pathname === "/api/catalog-status") {
       return jsonResponse({
         latest_catalog_update: "2026-10-30 16:44:35",
-        eur_rub_rate: 84.0,
         total_catalogs: 210,
       });
     }
@@ -297,9 +330,9 @@ export default {
     if (method === "GET" && pathname === "/api/search-books") {
       const q = urlObj.searchParams.get("q") ?? "";
       try {
-        const clean = encodeURIComponent(`*${q.trim()}*`);
-        const targetUrl = q.trim()
-          ? `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&or=(name.ilike.${clean},publisher.ilike.${clean})&order=id.asc&limit=100`
+        const orClause = buildWorkerSearchOr(q);
+        const targetUrl = q.trim() && orClause
+          ? `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&or=${encodeURIComponent(orClause)}&order=id.asc&limit=150`
           : `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&order=id.asc&limit=100`;
         const sRes = await fetch(targetUrl, {
           headers: {

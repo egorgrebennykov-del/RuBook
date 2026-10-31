@@ -49,7 +49,6 @@ export default async function getBookDetails(idOrUrl) {
     const row = rows[0];
     const info = row.info || {};
     const eurPrice = Number(row.price) > 0 ? Number(row.price) : 5.99;
-    const rubPrice = Number(info.price_rub) > 0 ? Number(info.price_rub) : Math.round(eurPrice * rate);
 
     const title = decodeHtmlEntities(row.name || "");
     const author = info.author ? decodeHtmlEntities(info.author) : "";
@@ -89,7 +88,6 @@ export default async function getBookDetails(idOrUrl) {
     if (binding) additionalProperties.push({ name: "Переплет", value: binding });
     if (format) additionalProperties.push({ name: "Формат", value: format });
     if (age) additionalProperties.push({ name: "Возраст", value: age });
-    if (rubPrice) additionalProperties.push({ name: "Цена в рублях", value: `${rubPrice} ₽` });
     additionalProperties.push({ name: "Поставщик", value: "Transbaltik" });
 
     return {
@@ -98,7 +96,6 @@ export default async function getBookDetails(idOrUrl) {
       title,
       price: eurPrice,
       currency: "EUR",
-      price_rub: rubPrice,
       description,
       descriptionHtml: `<p>${description.replace(/\n\n+/g, "</p><p>").replace(/\n/g, "<br/>")}</p>`,
       mainImage: row.image ? { url: row.image } : null,
