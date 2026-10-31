@@ -4,14 +4,15 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import XLSX from "xlsx";
+import * as XLSX from "xlsx";
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(scriptDir, "../.env") });
 
-const { readFile, utils } = XLSX;
+const xlsxObj = XLSX?.default || XLSX;
+const { readFile, utils } = xlsxObj;
 
 const SUPABASE_URL =
   process.env.SUPABASE_URL ||

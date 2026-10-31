@@ -1,11 +1,12 @@
 import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
-import XLSX from 'xlsx';
+import * as XLSX from 'xlsx';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-const { readFile, utils } = XLSX;
+const xlsxObj = XLSX?.default || XLSX;
+const { readFile, utils } = xlsxObj;
 
 const SUPABASE_URL =
   process.env.SUPABASE_URL ||

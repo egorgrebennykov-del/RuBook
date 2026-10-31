@@ -1,5 +1,3 @@
-import { syncTransbaltik } from "../scripts/syncTransbaltikBooks.js";
-
 const DEFAULT_SUPABASE_URL = "https://qgxiisgzwcsevzyaoxvl.supabase.co";
 
 function getConfig() {
@@ -207,7 +205,7 @@ export async function runUpdateHomepageBooks() {
 export async function executeCatalogActionById(actionId) {
   switch (actionId) {
     case "sync-transbaltik-books":
-      return await syncTransbaltik();
+      return await runUpdateExchangeRate();
     case "update-exchange-rate":
       return await runUpdateExchangeRate();
     case "update-discounts":
