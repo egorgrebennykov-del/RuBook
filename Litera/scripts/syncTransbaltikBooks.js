@@ -193,6 +193,12 @@ export function parseSheetToBooks(sheet, publisherName = '', rate = DEFAULT_RATE
     const series = seriesCol !== -1 ? String(row[seriesCol] || '').trim() : '';
     const genre = genreCol !== -1 ? String(row[genreCol] || '').trim() : '';
 
+    if (!image && code && code.startsWith('ASE')) {
+      image = `https://cdn.ast.ru/v2/${code}/COVER/cover1__w340.jpg`;
+    } else if (image && image.includes('go.ast.ru') && code) {
+      image = `https://cdn.ast.ru/v2/${code}/COVER/cover1__w340.jpg`;
+    }
+
     books.push({
       name: rawName,
       price: eurPrice > 0 ? eurPrice : (rawPrice > 0 ? Math.round((rawPrice / 84) * 100) / 100 : 5.99),

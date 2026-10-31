@@ -246,6 +246,9 @@ export default function Featured() {
                       className="results__img"
                       src={book.image}
                       alt={book.title}
+                      author={book.author}
+                      publisher={book.publisher}
+                      id={book.id}
                       loading={index < 6 ? "eager" : "lazy"}
                       decoding="async"
                       fetchPriority={index < 4 ? "high" : "auto"}

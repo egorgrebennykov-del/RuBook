@@ -202,6 +202,8 @@ export default function Cart({ onSearch }) {
                     className="cart__image"
                     src={book.image}
                     alt={book.title || ""}
+                    author={book.author}
+                    publisher={book.publisher || book.shop}
                     loading="eager"
                     decoding="auto"
                   />

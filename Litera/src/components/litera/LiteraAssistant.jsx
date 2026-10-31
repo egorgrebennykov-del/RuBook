@@ -894,6 +894,9 @@ export default function LiteraAssistant() {
                                     <BookImage
                                       src={book.image}
                                       alt={book.title}
+                                      author={book.author}
+                                      publisher={book.publisher}
+                                      id={book.id}
                                       className="litera-book-card__cover"
                                       loading="eager"
                                       decoding="async"

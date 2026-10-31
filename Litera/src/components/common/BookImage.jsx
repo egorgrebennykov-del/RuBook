@@ -1,10 +1,16 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import enhancedImageUrl from "../../../utils/enhancedImageUrl";
+import { generateBookCoverSvg } from "../../../utils/generateBookCoverSvg";
 import "./BookImage.css";
 
 export default function BookImage({
   src,
   alt = "",
+  title = "",
+  author = "",
+  publisher = "",
+  series = "",
+  id = 0,
   className = "",
   loading = "lazy",
   decoding = "async",
@@ -22,24 +28,19 @@ export default function BookImage({
     setFailed(false);
   }
 
-  const currentSrc = overrideSrc ?? enhancedImageUrl(src);
+  const effectiveTitle = alt || title || "Книга";
+  const fallbackSvg = useMemo(
+    () => generateBookCoverSvg({ title: effectiveTitle, author, publisher, series, id }),
+    [effectiveTitle, author, publisher, series, id]
+  );
 
-  if (!currentSrc || failed) {
-    return (
-      <div
-        className={`${className} book-image__placeholder`}
-        aria-label={alt || "Обложка книги"}
-      >
-        <i className="ri-book-2-line book-image__placeholder-icon" />
-        {alt && <span className="book-image__placeholder-title">{alt}</span>}
-      </div>
-    );
-  }
+  const initialEnhanced = useMemo(() => enhancedImageUrl(src), [src]);
+  const currentSrc = overrideSrc ?? (initialEnhanced || fallbackSvg);
 
   return (
     <img
-      src={currentSrc}
-      alt={alt}
+      src={failed ? fallbackSvg : currentSrc}
+      alt={alt || "Обложка книги"}
       className={className}
       loading={loading}
       decoding={decoding}
@@ -47,13 +48,11 @@ export default function BookImage({
       referrerPolicy="no-referrer"
       onLoad={onLoad}
       onError={() => {
-        if (currentSrc.startsWith("/api/enhance-image")) {
-          setFailed(true);
-          onError?.();
-        } else if (src) {
-          // Try backend image proxy
-          setOverrideSrc(`/api/enhance-image?url=${encodeURIComponent(src)}`);
+        if (!failed && currentSrc && !currentSrc.startsWith("data:") && !currentSrc.startsWith("/api/enhance-image")) {
+          // Try backend enhance proxy first
+          setOverrideSrc(`/api/enhance-image?url=${encodeURIComponent(currentSrc)}`);
         } else {
+          // Graceful fallback to dynamic SVG book cover
           setFailed(true);
           onError?.();
         }

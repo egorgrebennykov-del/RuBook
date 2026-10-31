@@ -279,13 +279,16 @@ export default function NewBooks() {
                     className="results__img"
                     src={book.image}
                     alt={book.title}
+                    author={book.author}
+                    publisher={book.publisher}
+                    id={book.id}
                     loading={index < 6 ? "eager" : "lazy"}
                     decoding="async"
                     fetchPriority={index < 4 ? "high" : "auto"}
                   />
                   <h2 className="results__title">{decodeHtmlEntities(book.title)}</h2>
                   {isPrivileged() && (
-                    <span className="results__store">{book.store || "librarius.md"}</span>
+                    <span className="results__store">{book.store || "transbaltik.ru"}</span>
                   )}
                   <span className="results__price">
                     {formatPrice(price, currency, language)}

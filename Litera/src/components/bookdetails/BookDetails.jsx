@@ -466,6 +466,9 @@ export default function BookDetails() {
           <BookImage
             src={image}
             alt={title}
+            author={author}
+            publisher={publisher}
+            series={series}
             className="book__img"
             loading="eager"
             fetchPriority="high"

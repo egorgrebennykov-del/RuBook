@@ -280,6 +280,9 @@ export default function SearchResults() {
                     className="results__img"
                     src={book.image}
                     alt={book.title}
+                    author={book.author}
+                    publisher={book.publisher}
+                    id={book.id}
                     loading={i < 6 ? "eager" : "lazy"}
                     decoding="async"
                     fetchPriority={i < 4 ? "high" : "auto"}

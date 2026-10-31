@@ -207,7 +207,21 @@ async function handleEnhanceImage(request, urlObj, ctx) {
       // ignore cache read errors
     }
   }
-  const resolved = resolveHighResImageUrl(sourceUrl);
+  let resolved = resolveHighResImageUrl(sourceUrl);
+  if (resolved.includes("disk.yandex.ru/i/")) {
+    try {
+      const yApi = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(resolved)}`;
+      const yRes = await fetch(yApi);
+      if (yRes.ok) {
+        const yData = await yRes.json();
+        if (yData?.preview || yData?.file) {
+          resolved = yData.preview || yData.file;
+        }
+      }
+    } catch {
+      // fallback
+    }
+  }
   try {
     const parsed = new URL(resolved);
     const res = await fetch(resolved, {

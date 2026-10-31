@@ -89,8 +89,12 @@ const ALLOWED_IMAGE_HOSTS = new Set([
   "www.transbaltik.ru",
   "disk.yandex.ru",
   "downloader.disk.yandex.ru",
+  "cloud-api.yandex.net",
   "ast.ru",
   "go.ast.ru",
+  "cdn.ast.ru",
+  "bubblefiles.storage.yandexcloud.net",
+  "covers.openlibrary.org",
 ]);
 const pendingImages = new Map();
 
@@ -126,6 +130,17 @@ function validImageUrl(value) {
 
 async function fetchSourceImage(sourceUrl) {
   let currentUrl = sourceUrl;
+  if (currentUrl.includes("disk.yandex.ru/i/")) {
+    try {
+      const yApi = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(currentUrl)}`;
+      const yRes = await axios.get(yApi, { timeout: 8000 });
+      if (yRes.data?.preview || yRes.data?.file) {
+        currentUrl = yRes.data.preview || yRes.data.file;
+      }
+    } catch {
+      // fallback
+    }
+  }
   for (let redirects = 0; redirects <= 3; redirects++) {
     if (!validImageUrl(currentUrl)) {
       throw new Error("Image redirect points to an unsupported host");
