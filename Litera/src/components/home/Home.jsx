@@ -24,10 +24,7 @@ const FALLBACK_PUBLISHERS = [
 function isStoreLabel(value) {
   const clean = String(value ?? "").trim().toLowerCase();
   if (!clean) return true;
-  return (
-    /\.(md|ro|ru|com)$/i.test(clean) ||
-    /^(librarius|carturesti|cărturești|ulysses|carteamea|biblion)$/i.test(clean)
-  );
+  return /\.(md|ro|ru|com)$/i.test(clean);
 }
 
 export default function Home() {

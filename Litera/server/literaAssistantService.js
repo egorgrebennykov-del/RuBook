@@ -1,14 +1,15 @@
-import { searchLibrarius } from "./librariusService.js";
-import { searchUlysses } from "./ulyssesService.js";
-import { searchCarteamea } from "./carteameaService.js";
-import { searchBiblion } from "./biblionService.js";
-import {
-  decodeLibrariusImage,
-  decodeUlyssesImage,
-  decodeCarteameaImage,
-  decodeBiblionImage,
-} from "../utils/enhancedImageUrl.js";
 import getExchangeRate, { DEFAULT_RATE } from "../utils/getExchangeRate.js";
+
+const SUPABASE_URL =
+  globalThis.process?.env?.SUPABASE_URL ||
+  globalThis.process?.env?.VITE_SUPABASE_URL ||
+  "https://qgxiisgzwcsevzyaoxvl.supabase.co";
+
+const SUPABASE_KEY =
+  globalThis.process?.env?.SUPABASE_SECRET_KEY ||
+  globalThis.process?.env?.SUPABASE_SERVICE_ROLE_KEY ||
+  globalThis.process?.env?.VITE_SUPABASE_ANON_KEY ||
+  "sb_publishable_b9UI3PiZhUvPTcroS9oMOg_NyHBwtxw";
 
 const DEFAULT_API_KEY = "";
 
@@ -168,13 +169,8 @@ Return a single JSON object strictly matching this schema:
 Do NOT include Markdown code fences.
 `;
 
-function decodeImageForStore(rawUrl, store) {
-  if (!rawUrl) return "";
-  if (store.includes("librarius")) return decodeLibrariusImage(rawUrl) || rawUrl;
-  if (store.includes("ulysses")) return decodeUlyssesImage(rawUrl) || rawUrl;
-  if (store.includes("carteamea")) return decodeCarteameaImage(rawUrl) || rawUrl;
-  if (store.includes("biblion")) return decodeBiblionImage(rawUrl) || rawUrl;
-  return rawUrl;
+function decodeImageForStore(rawUrl) {
+  return rawUrl || "";
 }
 
 /**
@@ -247,11 +243,6 @@ export function cleanUnsolicitedPitches(text) {
   return res.trim();
 }
 
-function parseMdlPrice(priceRaw) {
-  if (!priceRaw) return 0;
-  const match = String(priceRaw).replace(/\s+/g, "").match(/[\d.]+/);
-  return match ? Number.parseFloat(match[0]) : 0;
-}
 
 const storeSearchCache = new Map();
 const STORE_SEARCH_CACHE_TTL = 60 * 60 * 1000; // 1 hour cache
@@ -384,75 +375,47 @@ export async function searchSuppliersByTitleOnly(title, exchangeRate = DEFAULT_R
     return cached.data;
   }
 
-  const timeoutPromise = (promise, ms = 3200) =>
-    Promise.race([
-      promise,
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Timeout")), ms),
-      ),
-    ]);
+  try {
+    const clean = encodeURIComponent(`*${cleanTitle}*`);
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/books?select=id,name,price,publisher,image,info&name=ilike.${clean}&limit=15`,
+      {
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+        },
+      },
+    );
 
-  const [librariusRaw, ulyssesRaw, carteameaRaw, biblionRaw] =
-    await Promise.all([
-      timeoutPromise(searchLibrarius(cleanTitle, 1), 3000).catch(() => []),
-      timeoutPromise(searchUlysses(cleanTitle), 3000).catch(() => []),
-      timeoutPromise(searchCarteamea(cleanTitle), 3000).catch(() => []),
-      timeoutPromise(searchBiblion(cleanTitle, 1), 3000).catch(() => []),
-    ]);
-
-  const normalizeStoreItems = (items, storeName) =>
-    (items ?? []).map((p) => {
-      const mdlPrice = parseMdlPrice(p.price);
-      const eurPrice =
-        exchangeRate && mdlPrice > 0
-          ? Math.round((mdlPrice / exchangeRate) * 100) / 100
-          : mdlPrice;
-      const rawImg = p.mainImage?.url ?? p.images?.[0]?.url ?? "";
-      const img = decodeImageForStore(rawImg, storeName);
+    const rows = res.ok ? await res.json() : [];
+    const deduped = (rows || []).map((b) => {
+      const eurPrice = Number(b.price) > 0 ? Number(b.price) : 5.99;
+      const rubPrice = b.info?.price_rub || Math.round(eurPrice * (exchangeRate || 84));
       return {
-        title: (p.name || "").trim(),
-        author: (p.author || "").trim(),
-        price: eurPrice > 0 ? eurPrice : 15.0,
+        id: b.id,
+        title: (b.name || "").trim(),
+        author: (b.info?.author || "").trim(),
+        price: eurPrice,
         currency: "EUR",
-        image: img,
-        url: p.url || "",
-        store: storeName,
+        price_rub: rubPrice,
+        image: b.image || null,
+        url: `/book/${b.id}`,
+        store: b.publisher || "Transbaltik",
       };
     });
 
-  const rawCombined = [
-    ...normalizeStoreItems(librariusRaw, "librarius.md"),
-    ...normalizeStoreItems(ulyssesRaw, "ulysses.md"),
-    ...normalizeStoreItems(carteameaRaw, "carteamea.md"),
-    ...normalizeStoreItems(biblionRaw, "biblion.md"),
-  ].filter(
-    (b) =>
-      b.title &&
-      b.url &&
-      Number.isFinite(b.price) &&
-      b.price >= 2.0 &&
-      Boolean(b.image) &&
-      !b.image.includes("empty-cover"),
-  );
-
-  // Fast deduplication by URL
-  const seenUrls = new Set();
-  const deduped = [];
-  for (const b of rawCombined) {
-    if (!seenUrls.has(b.url)) {
-      seenUrls.add(b.url);
-      deduped.push(b);
+    if (deduped.length > 0) {
+      storeSearchCache.set(cacheKey, {
+        data: deduped,
+        expiresAt: Date.now() + STORE_SEARCH_CACHE_TTL,
+      });
     }
-  }
 
-  if (deduped.length > 0) {
-    storeSearchCache.set(cacheKey, {
-      data: deduped,
-      expiresAt: Date.now() + STORE_SEARCH_CACHE_TTL,
-    });
+    return deduped;
+  } catch (err) {
+    console.warn("searchSuppliersByTitleOnly error:", err.message);
+    return [];
   }
-
-  return deduped;
 }
 
 export const FOREIGN_LANGUAGE_PATTERN =

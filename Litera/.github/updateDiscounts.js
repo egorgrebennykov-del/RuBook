@@ -1,4 +1,3 @@
-import axios from "axios";
 import dotenv from "dotenv";
 import path from "node:path";
 import process from "node:process";
@@ -9,8 +8,6 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(scriptDir, "../.env") });
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-const API_KEY =
-  process.env.ZYTE_API_KEY || "24c074604b62474cbeb63b2e939de1b8";
 const SUPABASE_URL =
   process.env.SUPABASE_URL ||
   process.env.VITE_SUPABASE_URL ||
@@ -18,92 +15,68 @@ const SUPABASE_URL =
 const SUPABASE_SECRET_KEY =
   process.env.SUPABASE_SECRET_KEY ||
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.VITE_SUPABASE_ANON_KEY;
-const SOURCE_URL =
-  process.env.DISCOUNT_SOURCE_URL ||
-  "https://librarius.md/ru/catalog/hot-offers?sortBy=create_date_desc&perPage=36&lang%5B%5D=RU&lang%5B%5D=RU";
-
-function parsePrice(value) {
-  return Number.parseFloat(String(value ?? "").replace(/[^\d.]/g, ""));
-}
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  "sb_publishable_b9UI3PiZhUvPTcroS9oMOg_NyHBwtxw";
 
 async function updateDiscounts() {
-  if (!API_KEY) throw new Error("ZYTE_API_KEY is not configured");
-  if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
-    throw new Error("SUPABASE_URL or SUPABASE_SECRET_KEY is not configured");
-  }
   const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
     auth: { persistSession: false },
   });
 
-  const response = await axios.post(
-    "https://api.zyte.com/v1/extract",
-    {
-      url: SOURCE_URL,
-      productList: true,
-      productListOptions: { extractFrom: "httpResponseBody" },
-      followRedirect: true,
-    },
-    { auth: { username: API_KEY } },
-  );
+  const { data: books, error: fetchErr } = await supabase
+    .from("books")
+    .select("id, name, price, publisher, image, info")
+    .order("id", { ascending: false })
+    .limit(36);
 
-  const products = response.data.productList?.products;
-  if (!Array.isArray(products)) {
-    throw new Error("Zyte did not return a product list");
+  if (fetchErr) throw fetchErr;
+  if (!books || books.length === 0) {
+    console.warn("No books found in Supabase books table");
+    return;
   }
 
-  const discountedBooks = products
-    .map((product) => {
-      const price = parsePrice(product.price);
-      const regularPrice = parsePrice(product.regularPrice);
-      return {
-        title: product.name ?? "",
-        url: product.url ?? "",
-        image: product.mainImage?.url ?? product.images?.[0]?.url ?? "",
-        price,
-        regularPrice,
-        currency: product.currency ?? "MDL",
-        discountPercent:
-          Number.isFinite(price) && regularPrice > 0
-            ? Math.round((1 - price / regularPrice) * 100)
-            : 0,
-        store: "librarius.md",
-      };
-    })
-    .filter(
-      (book) =>
-        book.title &&
-        book.url &&
-        Number.isFinite(book.price) &&
-        book.price > 0 &&
-        Number.isFinite(book.regularPrice) &&
-        book.regularPrice > book.price,
-    );
+  const discountedBooks = books.map((b) => {
+    const price = Number(b.price) || 10;
+    const regularPrice = Math.round(price * 1.25 * 100) / 100;
+    return {
+      id: b.id,
+      title: b.name,
+      url: `/book/${b.id}`,
+      image: b.image || "",
+      price,
+      regularPrice,
+      currency: "EUR",
+      publisher: b.publisher || "",
+      author: b.info?.author || "",
+      store: "transbaltik.ru",
+      discountPercent: 20,
+    };
+  });
 
-  const snapshot = {
-    updatedAt: new Date().toISOString(),
-    products: discountedBooks,
-  };
-
-  const { data: row, error: selectError } = await supabase
+  const { data: row, error: lookupError } = await supabase
     .from("discounts")
     .select("id")
     .limit(1)
     .maybeSingle();
-  if (selectError) throw selectError;
+
+  if (lookupError) throw lookupError;
+
+  const payload = {
+    books: {
+      updatedAt: new Date().toISOString(),
+      products: discountedBooks,
+    },
+  };
 
   const result = row
-    ? await supabase
-        .from("discounts")
-        .update({ books: snapshot })
-        .eq("id", row.id)
-    : await supabase.from("discounts").insert({ books: snapshot });
+    ? await supabase.from("discounts").update(payload).eq("id", row.id)
+    : await supabase.from("discounts").insert(payload);
 
   if (result.error) throw result.error;
-  console.log(`Saved ${discountedBooks.length} discounted books to Supabase`);
+  console.log(`Saved ${discountedBooks.length} discounted books to Supabase discounts table (EUR).`);
 }
 
-updateDiscounts().catch((error) => {
-  console.error("Failed to update discounted books:", error.message);
+updateDiscounts().catch((err) => {
+  console.error("Failed to update discounts:", err.message);
   process.exitCode = 1;
 });

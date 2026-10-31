@@ -243,13 +243,13 @@ export default function NewBooks() {
       {status === "ready" && products.length > 0 && (
         <div className="new-books__grid">
           {products.map((book, index) => {
-            const currency = rate ? "EUR" : book.currency || "MDL";
-            const price = rate ? (getEuroPrice(book, rate) ?? book.price) : book.price;
+            const currency = "EUR";
+            const price = Number(book.price) || 5.99;
             const preview = {
               title: book.title,
               url: book.url,
               image: book.image,
-              store: book.store || "librarius.md",
+              store: book.publisher || book.store || "Transbaltik",
               price,
               currency,
             };

@@ -5143,6 +5143,13 @@ export default function Privileged() {
             <div className="privileged__workflows-grid">
               {[
                 {
+                  id: "sync-transbaltik-books",
+                  title: "Синхронизация каталогов Transbaltik & курс EUR/RUB",
+                  file: ".github/workflows/sync-transbaltik-books.yml",
+                  descKey: "privileged.gitActions.wfExchangeRateDesc",
+                  icon: "ri-refresh-line",
+                },
+                {
                   id: "update-book-picks",
                   title: "Update Book Picks",
                   file: ".github/workflows/update-book-picks.yml",

@@ -470,7 +470,7 @@ export const translations = {
     "privileged.gitActions.wfNewBooksDesc":
       "Сканирование книжных новинок и обновление каталога новинок (раз в неделю по понедельникам в 03:00).",
     "privileged.gitActions.wfExchangeRateDesc":
-      "Синхронизация официальных курсов валют MDL/EUR (раз в день в 03:00).",
+      "Синхронизация каталогов цен Transbaltik и официального курса EUR/RUB (раз в день ночью в 02:00).",
     "privileged.gitActions.wfDiscountsDesc":
       "Сбор и актуализация акционных книг со скидками в Supabase (раз в день в 03:00).",
 
@@ -997,13 +997,13 @@ export const translations = {
     "privileged.gitActions.noLogs": "No logs available",
     "privileged.gitActions.repoLabel": "Project repository on GitHub: ",
     "privileged.gitActions.wfBookPicksDesc":
-      "Collecting and updating curated book picks from Moldovan bookstores (weekly on Mondays at 03:00).",
+      "Collecting and updating curated book catalogs from Transbaltik pricelists (weekly on Mondays at 03:00).",
     "privileged.gitActions.wfHomeBooksDesc":
       "Updating books for the homepage showcase with Supabase synchronization (monthly on the 1st at 03:00).",
     "privileged.gitActions.wfNewBooksDesc":
       "Scanning new book arrivals and updating the new books catalog (weekly on Mondays at 03:00).",
     "privileged.gitActions.wfExchangeRateDesc":
-      "Synchronizing official currency exchange rates MDL/EUR (daily at 03:00).",
+      "Synchronizing Transbaltik price catalogs and official EUR/RUB rate (daily at 02:00 UTC).",
     "privileged.gitActions.wfDiscountsDesc":
       "Collecting and updating discounted books for the discounts showcase in Supabase (daily at 03:00).",
 

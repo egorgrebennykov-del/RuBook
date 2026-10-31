@@ -13,34 +13,6 @@ import sharp from "sharp";
 import { dedupeBooks } from "./dedupeBooks.js";
 import { warmupImageModel } from "../utils/bookSimilarity.js";
 import {
-  decodeLibrariusImage,
-  searchLibrarius,
-  getLibrariusDetails,
-} from "./librariusService.js";
-import {
-  decodeCarturestiImage,
-  decodeUlyssesImage,
-  decodeCarteameaImage,
-  decodeBiblionImage,
-} from "../utils/enhancedImageUrl.js";
-import {
-  searchCarturesti,
-  getCarturestiDetails,
-} from "./carturestiService.js";
-import {
-  searchUlysses,
-  getUlyssesDetails,
-  thumbToHighRes,
-} from "./ulyssesService.js";
-import {
-  searchCarteamea,
-  getCarteameaDetails,
-} from "./carteameaService.js";
-import {
-  searchBiblion,
-  getBiblionDetails,
-} from "./biblionService.js";
-import {
   processLiteraChat,
   filterInquiryMessageWithAI,
   translateLiteraDialog,
@@ -48,6 +20,7 @@ import {
 import { sendGuestInquiryEmail } from "./emailService.js";
 import { executeCatalogActionById } from "./catalogActionsService.js";
 import { setHttpAdapter } from "./httpClient.js";
+import { syncTransbaltik } from "../scripts/syncTransbaltikBooks.js";
 
 const defaultHttpsAgent = new https.Agent({ rejectUnauthorized: false });
 setHttpAdapter({
@@ -85,6 +58,12 @@ const ACTIONS = {
     workflowFile: "update-exchange-rate.yml",
     script: "updateExchangeRate.js",
   },
+  "sync-transbaltik-books": {
+    id: "sync-transbaltik-books",
+    name: "Sync Transbaltik Books & Rate",
+    workflowFile: "sync-transbaltik-books.yml",
+    script: "syncTransbaltikBooks.js",
+  },
   "update-discounts": {
     id: "update-discounts",
     name: "Update Discount Books",
@@ -94,6 +73,7 @@ const ACTIONS = {
 };
 
 const actionStatuses = {
+  "sync-transbaltik-books": { status: "idle", lastRun: null, error: null, output: "" },
   "update-book-picks": { status: "idle", lastRun: null, error: null, output: "" },
   "update-home-books": { status: "idle", lastRun: null, error: null, output: "" },
   "update-new-books": { status: "idle", lastRun: null, error: null, output: "" },
@@ -105,17 +85,12 @@ const MAX_BODY_SIZE = 2 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
 const IMAGE_CACHE_DIR = path.join(appDir, ".cache", "fast-enhanced-images");
 const ALLOWED_IMAGE_HOSTS = new Set([
-  "librarius.md",
-  "www.librarius.md",
-  "cdn.librarius.md",
-  "carturesti.md",
-  "www.carturesti.md",
-  "ulysses.md",
-  "www.ulysses.md",
-  "carteamea.md",
-  "www.carteamea.md",
-  "biblion.md",
-  "www.biblion.md",
+  "transbaltik.ru",
+  "www.transbaltik.ru",
+  "disk.yandex.ru",
+  "downloader.disk.yandex.ru",
+  "ast.ru",
+  "go.ast.ru",
 ]);
 const pendingImages = new Map();
 
@@ -199,20 +174,6 @@ function resolveOriginalImageUrl(sourceUrl) {
       // ignore
     }
   }
-  if (target.includes("librarius.md")) {
-    target = decodeLibrariusImage(target) || target;
-  } else if (target.includes("carturesti.md")) {
-    target = decodeCarturestiImage(target);
-  } else if (target.includes("ulysses.md")) {
-    target = decodeUlyssesImage(target);
-    if (thumbToHighRes.has(target)) {
-      target = thumbToHighRes.get(target);
-    }
-  } else if (target.includes("carteamea.md")) {
-    target = decodeCarteameaImage(target);
-  } else if (target.includes("biblion.md")) {
-    target = decodeBiblionImage(target);
-  }
   return target;
 }
 
@@ -291,121 +252,66 @@ const server = createServer(async (req, res) => {
     await handleEnhancedImage(req, res);
     return;
   }
-  if (req.method === "GET" && req.url?.startsWith("/api/search-librarius?")) {
-    const sp = new URL(req.url, "http://localhost").searchParams;
-    const q = sp.get("q") ?? "";
-    const fast = sp.get("fast") === "1";
+  if (req.method === "GET" && req.url === "/api/catalog-status") {
     try {
-      const products = await searchLibrarius(q, fast ? 1 : 10);
-      respond(res, 200, { products });
-    } catch (error) {
-      console.warn("Direct Librarius search error:", error.message);
-      respond(res, 500, { error: error.message });
+      const statusFile = path.resolve(appDir, "public", "catalog-status.json");
+      const content = await readFile(statusFile, "utf8");
+      respond(res, 200, JSON.parse(content));
+    } catch {
+      respond(res, 200, {
+        latest_catalog_update: "2026-10-30 16:44:35",
+        eur_rub_rate: 84.0,
+        total_catalogs: 210,
+      });
     }
     return;
   }
-  if (req.method === "GET" && req.url?.startsWith("/api/search-carturesti?")) {
-    const sp = new URL(req.url, "http://localhost").searchParams;
-    const q = sp.get("q") ?? "";
-    const fast = sp.get("fast") === "1";
+  if (req.method === "POST" && req.url === "/api/sync-transbaltik") {
     try {
-      const products = await searchCarturesti(q, fast ? 1 : 10);
-      respond(res, 200, { products });
-    } catch (error) {
-      console.warn("Direct Carturesti search error:", error.message);
-      respond(res, 500, { error: error.message });
+      const result = await syncTransbaltik();
+      respond(res, 200, { success: true, ...result });
+    } catch (err) {
+      console.warn("Manual sync-transbaltik error:", err.message);
+      respond(res, 500, { error: err.message });
     }
     return;
   }
-  if (req.method === "GET" && req.url?.startsWith("/api/search-ulysses?")) {
-    const sp = new URL(req.url, "http://localhost").searchParams;
-    const q = sp.get("q") ?? "";
-    const fast = sp.get("fast") === "1";
-    try {
-      const products = await searchUlysses(q, fast ? 1 : 6);
-      respond(res, 200, { products });
-    } catch (error) {
-      console.warn("Direct Ulysses search error:", error.message);
-      respond(res, 500, { error: error.message });
-    }
-    return;
-  }
-  if (req.method === "GET" && req.url?.startsWith("/api/search-carteamea?")) {
-    const sp = new URL(req.url, "http://localhost").searchParams;
-    const q = sp.get("q") ?? "";
-    const fast = sp.get("fast") === "1";
-    try {
-      const products = await searchCarteamea(q, fast ? 1 : 10);
-      respond(res, 200, { products });
-    } catch (error) {
-      console.warn("Direct Carteamea search error:", error.message);
-      respond(res, 500, { error: error.message });
-    }
-    return;
-  }
-  if (req.method === "GET" && req.url?.startsWith("/api/search-biblion?")) {
-    const sp = new URL(req.url, "http://localhost").searchParams;
-    const q = sp.get("q") ?? "";
-    const fast = sp.get("fast") === "1";
-    try {
-      const products = await searchBiblion(q, fast ? 1 : 10);
-      respond(res, 200, { products });
-    } catch (error) {
-      console.warn("Direct Biblion search error:", error.message);
-      respond(res, 500, { error: error.message });
-    }
-    return;
-  }
-  if (req.method === "GET" && req.url?.startsWith("/api/search-all?")) {
+  if (req.method === "GET" && req.url?.startsWith("/api/search-books?")) {
     const q = new URL(req.url, "http://localhost").searchParams.get("q") ?? "";
     try {
-      const [librarius, carturesti, ulysses, carteamea, biblion] =
-        await Promise.all([
-          searchLibrarius(q).catch(() => []),
-          searchCarturesti(q).catch(() => []),
-          searchUlysses(q).catch(() => []),
-          searchCarteamea(q).catch(() => []),
-          searchBiblion(q).catch(() => []),
-        ]);
-      respond(res, 200, { librarius, carturesti, ulysses, carteamea, biblion });
+      const clean = encodeURIComponent(`*${q.trim()}*`);
+      const targetUrl = q.trim()
+        ? `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&or=(name.ilike.${clean},publisher.ilike.${clean})&order=id.asc&limit=100`
+        : `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&order=id.asc&limit=100`;
+      const sRes = await fetch(targetUrl, {
+        headers: {
+          apikey: "sb_publishable_b9UI3PiZhUvPTcroS9oMOg_NyHBwtxw",
+          Authorization: "Bearer sb_publishable_b9UI3PiZhUvPTcroS9oMOg_NyHBwtxw",
+        },
+      });
+      const rows = sRes.ok ? await sRes.json() : [];
+      respond(res, 200, { products: rows });
     } catch (error) {
-      console.warn("Search-all error:", error.message);
       respond(res, 500, { error: error.message });
     }
     return;
   }
   if (req.method === "GET" && req.url?.startsWith("/api/book-details?")) {
-    const bookUrl =
-      new URL(req.url, "http://localhost").searchParams.get("url") ?? "";
+    const sp = new URL(req.url, "http://localhost").searchParams;
+    const id = sp.get("id");
     try {
-      if (bookUrl.includes("librarius.md")) {
-        const product = await getLibrariusDetails(bookUrl);
-        respond(res, 200, { product });
-        return;
-      }
-      if (bookUrl.includes("carturesti.md")) {
-        const product = await getCarturestiDetails(bookUrl);
-        respond(res, 200, { product });
-        return;
-      }
-      if (bookUrl.includes("ulysses.md")) {
-        const product = await getUlyssesDetails(bookUrl);
-        respond(res, 200, { product });
-        return;
-      }
-      if (bookUrl.includes("carteamea.md")) {
-        const product = await getCarteameaDetails(bookUrl);
-        respond(res, 200, { product });
-        return;
-      }
-      if (bookUrl.includes("biblion.md")) {
-        const product = await getBiblionDetails(bookUrl);
-        respond(res, 200, { product });
-        return;
-      }
-      respond(res, 400, { error: "Unsupported bookstore URL" });
+      const targetUrl = id
+        ? `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&id=eq.${id}&limit=1`
+        : `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&limit=1`;
+      const sRes = await fetch(targetUrl, {
+        headers: {
+          apikey: "sb_publishable_b9UI3PiZhUvPTcroS9oMOg_NyHBwtxw",
+          Authorization: "Bearer sb_publishable_b9UI3PiZhUvPTcroS9oMOg_NyHBwtxw",
+        },
+      });
+      const rows = sRes.ok ? await sRes.json() : [];
+      respond(res, 200, { product: rows[0] || null });
     } catch (error) {
-      console.warn("Direct book details error:", error.message);
       respond(res, 500, { error: error.message });
     }
     return;

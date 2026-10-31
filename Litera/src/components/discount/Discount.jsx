@@ -44,9 +44,9 @@ function normalizeSnapshot(value) {
             book.image ?? book.mainImage?.url ?? book.images?.[0]?.url ?? "",
           price,
           regularPrice,
-          currency: book.currency ?? "MDL",
+          currency: "EUR",
           discountPercent: Number(book.discountPercent) || calculatedDiscount,
-          store: book.store ?? "librarius.md",
+          store: book.publisher ?? book.store ?? "Transbaltik",
         };
       })
       .filter(

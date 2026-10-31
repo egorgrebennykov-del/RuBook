@@ -1,0 +1,35 @@
+name: Nightly Sync Transbaltik Books & Rate
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync-transbaltik:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: Litera/.github
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install xlsx dotenv @supabase/supabase-js
+
+      - name: Sync Transbaltik books and exchange rate
+        run: node syncTransbaltikBooks.js
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}

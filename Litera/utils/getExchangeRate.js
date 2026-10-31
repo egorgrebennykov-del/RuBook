@@ -14,35 +14,39 @@ const SUPABASE_KEY =
   "sb_publishable_b9UI3PiZhUvPTcroS9oMOg_NyHBwtxw";
 
 // In-memory cache: avoids repeated Supabase fetches within the same session.
-// The rate is updated once a day by the GitHub Action, so 5 minutes is fine.
 const CACHE_TTL_MS = 5 * 60 * 1000;
 let cachedRate = null;
 let cacheExpiry = 0;
-// Pending promise deduplication: concurrent callers share one in-flight request.
 let inflight = null;
 
-export const DEFAULT_RATE = 20.2;
+// Official default rate from https://www.transbaltik.ru/pricelists: КУРС EUR/RUB: 84.00
+export const DEFAULT_RATE = 84.0;
 
 export function getCachedExchangeRate() {
-  return cachedRate;
+  return cachedRate || DEFAULT_RATE;
+}
+
+export function convertEurToRub(eur, rate = cachedRate || DEFAULT_RATE) {
+  const num = Number(eur);
+  if (!Number.isFinite(num)) return 0;
+  return Math.round(num * (rate || DEFAULT_RATE));
+}
+
+export function convertRubToEur(rub, rate = cachedRate || DEFAULT_RATE) {
+  const num = Number(rub);
+  if (!Number.isFinite(num)) return 0;
+  return Math.round((num / (rate || DEFAULT_RATE)) * 100) / 100;
 }
 
 export default async function getExchangeRate() {
-  // Return from cache if still fresh.
   if (cachedRate !== null && Date.now() < cacheExpiry) return cachedRate;
-
-  // Deduplicate concurrent calls — only one fetch in flight at a time.
   if (inflight) return inflight;
-
-  if (!SUPABASE_KEY) {
-    console.warn("VITE_SUPABASE_ANON_KEY не задан в .env — курс не загружен");
-    return DEFAULT_RATE;
-  }
 
   inflight = (async () => {
     try {
+      // 1. Try querying Supabase exchange_rate for EUR/RUB
       const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/exchange_rate?select=rate&base_currency=eq.EUR&quote_currency=eq.MDL&limit=1`,
+        `${SUPABASE_URL}/rest/v1/exchange_rate?select=rate&base_currency=eq.EUR&quote_currency=eq.RUB&limit=1`,
         {
           headers: {
             apikey: SUPABASE_KEY,
@@ -61,9 +65,30 @@ export default async function getExchangeRate() {
         }
       }
     } catch (error) {
-      console.warn("Ошибка загрузки курса валют:", error.message);
+      console.warn("Error fetching exchange rate from Supabase:", error.message);
     }
-    return cachedRate || DEFAULT_RATE;
+
+    // 2. Fallback to scraping transbaltik.ru directly if running in Node / Worker
+    try {
+      const res = await fetch("https://www.transbaltik.ru/pricelists");
+      if (res.ok) {
+        const html = await res.text();
+        const match = html.match(/КУРС\s*EUR\/RUB:\s*([\d.,]+)/i);
+        if (match && match[1]) {
+          const parsed = Number(match[1].replace(",", "."));
+          if (Number.isFinite(parsed) && parsed > 0) {
+            cachedRate = parsed;
+            cacheExpiry = Date.now() + CACHE_TTL_MS;
+            return parsed;
+          }
+        }
+      }
+    } catch {
+      // fallback below
+    }
+
+    cachedRate = cachedRate || DEFAULT_RATE;
+    return cachedRate;
   })().finally(() => {
     inflight = null;
   });

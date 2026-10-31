@@ -1,33 +1,5 @@
 import workerEnv from "./workerEnv.js";
 import {
-  decodeLibrariusImage,
-  searchLibrarius,
-  getLibrariusDetails,
-} from "./librariusService.js";
-import {
-  decodeCarturestiImage,
-  decodeUlyssesImage,
-  decodeCarteameaImage,
-  decodeBiblionImage,
-} from "../utils/enhancedImageUrl.js";
-import {
-  searchCarturesti,
-  getCarturestiDetails,
-} from "./carturestiService.js";
-import {
-  searchUlysses,
-  getUlyssesDetails,
-  thumbToHighRes,
-} from "./ulyssesService.js";
-import {
-  searchCarteamea,
-  getCarteameaDetails,
-} from "./carteameaService.js";
-import {
-  searchBiblion,
-  getBiblionDetails,
-} from "./biblionService.js";
-import {
   processLiteraChat,
   filterInquiryMessageWithAI,
   translateLiteraDialog,
@@ -218,13 +190,6 @@ function resolveHighResImageUrl(sourceUrl) {
       // ignore
     }
   }
-  if (target.includes("librarius.md")) return decodeLibrariusImage(target);
-  if (target.includes("carturesti.md")) return decodeCarturestiImage(target);
-  if (target.includes("ulysses.md")) {
-    return thumbToHighRes.get(target) || decodeUlyssesImage(target);
-  }
-  if (target.includes("carteamea.md")) return decodeCarteameaImage(target);
-  if (target.includes("biblion.md")) return decodeBiblionImage(target);
   return target;
 }
 
@@ -307,108 +272,48 @@ export default {
       return handleEnhanceImage(request, urlObj, ctx);
     }
 
-    if (method === "GET" && pathname === "/api/search-librarius") {
-      const q = urlObj.searchParams.get("q") ?? "";
-      const fast = urlObj.searchParams.get("fast") === "1";
-      try {
-        const products = await searchLibrarius(q, fast ? 1 : 10);
-        return jsonResponse({ products });
-      } catch (err) {
-        return jsonResponse({ error: err.message }, 500);
-      }
+    if (method === "GET" && pathname === "/api/catalog-status") {
+      return jsonResponse({
+        latest_catalog_update: "2026-10-30 16:44:35",
+        eur_rub_rate: 84.0,
+        total_catalogs: 210,
+      });
     }
 
-    if (method === "GET" && pathname === "/api/search-carturesti") {
-      const q = urlObj.searchParams.get("q") ?? "";
-      const fast = urlObj.searchParams.get("fast") === "1";
-      try {
-        const products = await searchCarturesti(q, fast ? 1 : 10);
-        return jsonResponse({ products });
-      } catch (err) {
-        return jsonResponse({ error: err.message }, 500);
-      }
-    }
-
-    if (method === "GET" && pathname === "/api/search-ulysses") {
-      const q = urlObj.searchParams.get("q") ?? "";
-      const fast = urlObj.searchParams.get("fast") === "1";
-      try {
-        const products = await searchUlysses(q, fast ? 1 : 6);
-        return jsonResponse({ products });
-      } catch (err) {
-        return jsonResponse({ error: err.message }, 500);
-      }
-    }
-
-    if (method === "GET" && pathname === "/api/search-carteamea") {
-      const q = urlObj.searchParams.get("q") ?? "";
-      const fast = urlObj.searchParams.get("fast") === "1";
-      try {
-        const products = await searchCarteamea(q, fast ? 1 : 10);
-        return jsonResponse({ products });
-      } catch (err) {
-        return jsonResponse({ error: err.message }, 500);
-      }
-    }
-
-    if (method === "GET" && pathname === "/api/search-biblion") {
-      const q = urlObj.searchParams.get("q") ?? "";
-      const fast = urlObj.searchParams.get("fast") === "1";
-      try {
-        const products = await searchBiblion(q, fast ? 1 : 10);
-        return jsonResponse({ products });
-      } catch (err) {
-        return jsonResponse({ error: err.message }, 500);
-      }
-    }
-
-    if (method === "GET" && pathname === "/api/search-all") {
+    if (method === "GET" && pathname === "/api/search-books") {
       const q = urlObj.searchParams.get("q") ?? "";
       try {
-        const [librarius, carturesti, ulysses, carteamea, biblion] =
-          await Promise.all([
-            searchLibrarius(q).catch(() => []),
-            searchCarturesti(q).catch(() => []),
-            searchUlysses(q).catch(() => []),
-            searchCarteamea(q).catch(() => []),
-            searchBiblion(q).catch(() => []),
-          ]);
-        return jsonResponse({
-          librarius,
-          carturesti,
-          ulysses,
-          carteamea,
-          biblion,
+        const clean = encodeURIComponent(`*${q.trim()}*`);
+        const targetUrl = q.trim()
+          ? `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&or=(name.ilike.${clean},publisher.ilike.${clean})&order=id.asc&limit=100`
+          : `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&order=id.asc&limit=100`;
+        const sRes = await fetch(targetUrl, {
+          headers: {
+            apikey: "sb_publishable_b9UI3PiZhUvPTcroS9oMOg_NyHBwtxw",
+            Authorization: "Bearer sb_publishable_b9UI3PiZhUvPTcroS9oMOg_NyHBwtxw",
+          },
         });
+        const rows = sRes.ok ? await sRes.json() : [];
+        return jsonResponse({ products: rows });
       } catch (err) {
         return jsonResponse({ error: err.message }, 500);
       }
     }
 
     if (method === "GET" && pathname === "/api/book-details") {
-      const bookUrl = urlObj.searchParams.get("url") ?? "";
+      const id = urlObj.searchParams.get("id");
       try {
-        if (bookUrl.includes("librarius.md")) {
-          const product = await getLibrariusDetails(bookUrl);
-          return jsonResponse({ product });
-        }
-        if (bookUrl.includes("carturesti.md")) {
-          const product = await getCarturestiDetails(bookUrl);
-          return jsonResponse({ product });
-        }
-        if (bookUrl.includes("ulysses.md")) {
-          const product = await getUlyssesDetails(bookUrl);
-          return jsonResponse({ product });
-        }
-        if (bookUrl.includes("carteamea.md")) {
-          const product = await getCarteameaDetails(bookUrl);
-          return jsonResponse({ product });
-        }
-        if (bookUrl.includes("biblion.md")) {
-          const product = await getBiblionDetails(bookUrl);
-          return jsonResponse({ product });
-        }
-        return jsonResponse({ error: "Unsupported bookstore URL" }, 400);
+        const targetUrl = id
+          ? `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&id=eq.${id}&limit=1`
+          : `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&limit=1`;
+        const sRes = await fetch(targetUrl, {
+          headers: {
+            apikey: "sb_publishable_b9UI3PiZhUvPTcroS9oMOg_NyHBwtxw",
+            Authorization: "Bearer sb_publishable_b9UI3PiZhUvPTcroS9oMOg_NyHBwtxw",
+          },
+        });
+        const rows = sRes.ok ? await sRes.json() : [];
+        return jsonResponse({ product: rows[0] || null });
       } catch (err) {
         return jsonResponse({ error: err.message }, 500);
       }

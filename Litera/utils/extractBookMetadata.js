@@ -6,7 +6,7 @@ export function extractBookMetadata(rawDescription) {
   let text = rawDescription.trim();
   const extracted = {};
 
-  // 1. TAIL EXTRACTION (from Biblion/Zyte raw text dumps)
+  // 1. TAIL EXTRACTION (from raw catalog text dumps)
   // Look for "Артикул: 301815 Категория: ... Автор Достоевский Ф." at the end
   const tailRegex =
     /(?:(?:\n|\r|\s|^)(?:Артикул|Категория)\s*[:\t]|(?:\n|\r|^)\s*Автор\s*[:\t\n])[\s\S]*$/i;
@@ -38,7 +38,7 @@ export function extractBookMetadata(rawDescription) {
     text = text.slice(0, tailMatch.index).trim();
   }
 
-  // 2. PREFIX EXTRACTION (Biblion prefix metadata)
+  // 2. PREFIX EXTRACTION (prefix metadata)
   // Pattern example: "автор — Фёдор Достоевский, изд. Эксмо, серия — Магистраль. Главный тренд,  288 стр.  (мягкая обложка).   Текст..."
   // or "изд. Эксмо. (мягкая обложка). «Игрок» занимает..."
   let changed = true;

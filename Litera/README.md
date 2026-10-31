@@ -75,10 +75,9 @@ Litera/
 ├── server/                      # Backend API (Cloudflare Worker & Node.js HTTP server)
 │   ├── worker.js                # Cloudflare Worker entry point (/api/* routes + scheduled crons)
 │   ├── index.js                 # Local Node.js API server
-│   ├── catalogActionsService.js # Automated catalog & EUR exchange rate synchronization with Supabase
+│   ├── catalogActionsService.js # Automated catalog & EUR/RUB exchange rate synchronization with Supabase
 │   ├── literaAssistantService.js# AI Book Assistant (Google Gemini + live catalog search)
-│   ├── emailService.js          # Transactional email service
-│   └── *Service.js              # Real-time bookstore scrapers/adapters (Librarius, Carturesti, Ulysses, etc.)
+│   └── emailService.js          # Transactional email service
 ├── src/
 │   ├── components/              # Modular component-based architecture (each with its own CSS file)
 │   │   ├── announcements/       # SmallAnnouncements & LargeAnnouncementRoulette (touch-enabled carousel)
@@ -272,11 +271,15 @@ The application defines **15+ client-side routes** in `src/App.jsx` (using React
     - `coupons` (public and personalized discount promo codes)
     - `announcements` (bilingual site banners and promotional posters)
     - `inquiries` (customer-to-admin support chat threads and message history)
-    - `book_picks`, `discounts`, `new_books`, `books_on_home_page`, `exchange_rate` (synchronized catalog snapshots and EUR/MDL exchange rates)
+    - `books` (full books catalog synchronized from Transbaltik pricelists with name, price, publisher, image, and info JSON metadata)
+    - `exchange_rate` (EUR/RUB exchange rate synchronized from https://www.transbaltik.ru/pricelists, e.g. 1 € = 84.00 ₽)
+    - `book_picks`, `discounts`, `new_books`, `books_on_home_page`
   - **Cloudflare Worker / Node.js Backend (`/api/*`):**
-    - `/api/search-*` & `/api/book-details` — real-time book scraping and metadata extraction across 5 bookstores (`librarius.md`, `carturesti.md`, `ulysses.md`, `carteamea.md`, `biblion.md`).
-    - `/api/litera-chat` — Server-Sent Events (SSE) streaming endpoint for the Gemini-powered Litera AI Assistant.
-    - `/api/run-action` & Scheduled Cron Triggers — automated catalog and exchange rate synchronization.
+    - `https://www.transbaltik.ru/pricelists` — upstream source of 210+ publisher price lists (Bubble, AST, Eksmo, Azbuka, Genesis, 4Games, Kariera Press, Melik-Pashaev, etc.)
+    - `/api/search-books` & `/api/book-details` — fast catalog search and detailed metadata from Supabase `books` table
+    - `/api/catalog-status` & `/api/sync-transbaltik` — status tracking and on-demand synchronization of Transbaltik catalogs
+    - `/api/litera-chat` — Server-Sent Events (SSE) streaming endpoint for the Gemini-powered Litera AI Assistant with Transbaltik book recommendations.
+    - GitHub Actions & Scheduled Cron Triggers — nightly automatic synchronization (`.github/workflows/sync-transbaltik-books.yml` at 02:00 UTC) checking for updated pricelists and updating the database.
 
 ---
 

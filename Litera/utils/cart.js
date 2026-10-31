@@ -14,8 +14,6 @@ const headers = {
   "Content-Type": "application/json",
 };
 
-const DEFAULT_MDL_EUR_RATE = DEFAULT_RATE;
-
 async function getRate() {
   try {
     const rate = await getExchangeRate();
@@ -23,7 +21,7 @@ async function getRate() {
   } catch {
     // fallback below
   }
-  return DEFAULT_MDL_EUR_RATE;
+  return DEFAULT_RATE;
 }
 
 function requireUserId(userId) {
@@ -57,29 +55,6 @@ export async function getCart(userId = getCookieUser()?.id) {
     order: "id.desc",
   });
   const rows = (await request(`${TABLE_URL}?${params}`)) ?? [];
-
-  const needsHeal = rows.some((item) => Number(item.price) > 45);
-  if (needsHeal) {
-    const rate = await getRate();
-    for (const item of rows) {
-      const p = Number(item.price);
-      if (Number.isFinite(p) && p > 45) {
-        const healedPrice = Math.round((p / rate) * 100) / 100;
-        item.price = healedPrice;
-        const patchParams = new URLSearchParams({
-          id: `eq.${item.id}`,
-          user_id: `eq.${id}`,
-        });
-        request(`${TABLE_URL}?${patchParams}`, {
-          method: "PATCH",
-          body: JSON.stringify({ price: healedPrice }),
-        }).catch((err) =>
-          console.warn("Failed to persist auto-healed cart price:", err),
-        );
-      }
-    }
-  }
-
   return rows;
 }
 
@@ -105,22 +80,20 @@ export async function addToCart(book, userId = getCookieUser()?.id) {
   if (!Number.isFinite(rawPrice)) rawPrice = 0;
 
   let finalPrice = rawPrice;
-  // If explicitly MDL, or if currency is not EUR and price > 45, or if price is abnormally high (> 45)
-  if (
-    book.currency === "MDL" ||
-    (book.currency !== "EUR" && finalPrice > 45) ||
-    finalPrice > 45
-  ) {
+  // If price is given in RUB, convert to EUR
+  if (book.currency === "RUB" || (book.currency !== "EUR" && finalPrice > 100)) {
     const rate = await getRate();
     finalPrice = Math.round((finalPrice / rate) * 100) / 100;
   } else {
     finalPrice = Math.round(finalPrice * 100) / 100;
   }
 
+  const bookUrl = book.url || (book.id ? `/book/${book.id}` : "");
+
   const params = new URLSearchParams({
     select: "id,link,price,user_id,image,title,shop,quantity",
     user_id: `eq.${id}`,
-    link: `eq.${book.url}`,
+    link: `eq.${bookUrl}`,
     limit: "1",
   });
   const existing = await request(`${TABLE_URL}?${params}`);
@@ -130,12 +103,12 @@ export async function addToCart(book, userId = getCookieUser()?.id) {
     method: "POST",
     headers: { Prefer: "return=representation" },
     body: JSON.stringify({
-      link: book.url,
-      price: finalPrice,
+      link: bookUrl,
+      price: finalPrice > 0 ? finalPrice : 5.99,
       user_id: id,
-      image: book.image,
-      title: book.title,
-      shop: book.store || book.shop,
+      image: book.image || null,
+      title: book.title || book.name,
+      shop: book.publisher || book.store || book.shop || "Transbaltik",
       quantity: Math.max(1, Math.floor(Number(book.quantity) || 1)),
     }),
   });
