@@ -11,7 +11,7 @@ import { useLanguage } from "../../context/languageContext";
 import "./BookDetails.css";
 
 const HIDDEN_PROPERTIES =
-  /^(?:цена|вы экономите|иллюстрированное издание|тираж|штрих[\s-]?код.*|barcode.*|код(?:\s+товара|\s+продукта)?$|артикул.*|sku$|code$)/i;
+  /^(?:вы экономите|иллюстрированное издание|тираж)$/i;
 
 const CANONICAL_PROPERTY_MAP = {
   // Author
@@ -48,8 +48,11 @@ const CANONICAL_PROPERTY_MAP = {
   код: { ru: "Код товара", en: "Code", key: "code" },
   "код товара": { ru: "Код товара", en: "Code", key: "code" },
   "код продукта": { ru: "Код товара", en: "Code", key: "code" },
-  артикул: { ru: "Код товара", en: "Code", key: "code" },
-  sku: { ru: "Код товара", en: "Code", key: "code" },
+  артикул: { ru: "Артикул", en: "Article / SKU", key: "code" },
+  sku: { ru: "Артикул", en: "Article / SKU", key: "code" },
+  штрихкод: { ru: "Штрихкод", en: "Barcode", key: "barcode" },
+  "штрих-код": { ru: "Штрихкод", en: "Barcode", key: "barcode" },
+  barcode: { ru: "Штрихкод", en: "Barcode", key: "barcode" },
 
   // Series / Collection
   серия: { ru: "Серия", en: "Series", key: "series" },
@@ -70,6 +73,7 @@ const CANONICAL_PROPERTY_MAP = {
 
   // Genre
   жанр: { ru: "Жанр", en: "Genre", key: "genre" },
+  "жанр / категория": { ru: "Жанр", en: "Genre", key: "genre" },
   genre: { ru: "Жанр", en: "Genre", key: "genre" },
 
   // Language
@@ -99,6 +103,10 @@ const CANONICAL_PROPERTY_MAP = {
   вес: { ru: "Вес", en: "Weight", key: "weight" },
   "вес (г)": { ru: "Вес", en: "Weight", key: "weight" },
   weight: { ru: "Вес", en: "Weight", key: "weight" },
+
+  // Supplier & RUB price
+  "цена в рублях": { ru: "Цена в рублях", en: "Price (RUB)", key: "price_rub" },
+  поставщик: { ru: "Поставщик", en: "Supplier", key: "supplier" },
 };
 
 const PROPERTY_VALUES_EN = {
@@ -214,20 +222,20 @@ export default function BookDetails() {
     product?.mainImage?.url ?? product?.images?.[0]?.url ?? preview?.image;
 
   const rawPrice = Number.parseFloat(product?.price);
-  const activeRate = rate || 20.2;
+  const activeRate = rate || 84.0;
   const toEur = (value) => Math.round((value / activeRate) * 100) / 100;
   let price = null;
-  if (preview && Number.isFinite(preview.price)) {
-    price =
-      preview.currency !== "EUR"
-        ? formatPrice(toEur(preview.price), "EUR", language)
-        : formatPrice(preview.price, preview.currency, language);
-  } else if (Number.isFinite(rawPrice)) {
-    price =
-      product?.currency === "EUR"
-        ? formatPrice(rawPrice, "EUR", language)
-        : formatPrice(toEur(rawPrice), "EUR", language);
+  const eurVal = Number.isFinite(preview?.price)
+    ? (preview.currency !== "EUR" ? toEur(preview.price) : preview.price)
+    : Number.isFinite(rawPrice)
+      ? (product?.currency === "EUR" ? rawPrice : toEur(rawPrice))
+      : null;
+
+  if (eurVal != null) {
+    price = formatPrice(eurVal, "EUR", language);
   }
+
+  const rubPrice = product?.price_rub || (eurVal ? Math.round(eurVal * activeRate) : null);
 
   const descSource = decodeHtmlEntities(
     product?.description || product?.descriptionHtml || "",
@@ -311,8 +319,7 @@ export default function BookDetails() {
       (p) =>
         p.name &&
         p.value &&
-        !HIDDEN_PROPERTIES.test(String(p.name).trim()) &&
-        !/^(?:code|barcode)$/i.test(String(p.name).trim()),
+        !HIDDEN_PROPERTIES.test(String(p.name).trim()),
     )
     .map((p) => {
       const decodedVal = decodeHtmlEntities(p.value).trim();
@@ -350,8 +357,6 @@ export default function BookDetails() {
     .filter(
       (p) =>
         !HIDDEN_PROPERTIES.test(p.name) &&
-        p.groupKey !== "code" &&
-        p.groupKey !== "barcode" &&
         !seenKeys.has(p.groupKey) &&
         seenKeys.add(p.groupKey),
     );
@@ -359,13 +364,40 @@ export default function BookDetails() {
   const author = decodeHtmlEntities(
     product?.author ||
       extracted?.author ||
-      properties.find(
-        (p) =>
-          p.groupKey === "author" ||
-          p.name === "Author" ||
-          p.name.toLowerCase() === "автор",
-      )?.value ||
+      properties.find((p) => p.groupKey === "author")?.value ||
       preview?.author ||
+      "",
+  );
+
+  const publisher = decodeHtmlEntities(
+    product?.publisher ||
+      extracted?.publisher ||
+      properties.find((p) => p.groupKey === "publisher")?.value ||
+      preview?.publisher ||
+      "",
+  );
+
+  const year = decodeHtmlEntities(
+    product?.year ||
+      extracted?.year ||
+      properties.find((p) => p.groupKey === "year")?.value ||
+      preview?.year ||
+      "",
+  );
+
+  const series = decodeHtmlEntities(
+    product?.series ||
+      extracted?.series ||
+      properties.find((p) => p.groupKey === "series")?.value ||
+      preview?.series ||
+      "",
+  );
+
+  const genre = decodeHtmlEntities(
+    product?.genre ||
+      extracted?.genre ||
+      properties.find((p) => p.groupKey === "genre")?.value ||
+      preview?.genre ||
       "",
   );
 
@@ -496,7 +528,38 @@ export default function BookDetails() {
 
             <h1 className="book__title">{title}</h1>
             {author && <p className="book__author">{author}</p>}
-            {price && <p className="book__price">{price}</p>}
+
+            {/* Quick Specs Badges: Publisher, Year, Series, Genre */}
+            <div className="book__meta-row">
+              {publisher && (
+                <span className="book__meta-badge" title="Издательство">
+                  <i className="ri-building-line" /> {publisher}
+                </span>
+              )}
+              {year && (
+                <span className="book__meta-badge" title="Год издания">
+                  <i className="ri-calendar-line" /> {year} г.
+                </span>
+              )}
+              {series && (
+                <span className="book__meta-badge" title="Серия">
+                  <i className="ri-book-mark-line" /> {series}
+                </span>
+              )}
+              {genre && (
+                <span className="book__meta-badge" title="Жанр">
+                  <i className="ri-price-tag-3-line" /> {genre}
+                </span>
+              )}
+            </div>
+
+            {/* Price in EUR with converted RUB equivalent */}
+            <div className="book__price-container">
+              {price && <span className="book__price">{price}</span>}
+              {rubPrice && (
+                <span className="book__price-rub"> (~ {rubPrice} ₽)</span>
+              )}
+            </div>
             {pendingAddUrl === url && !addedToCart ? (
               <div className="book__quantity-control">
                 <div className="book__quantity" aria-label="Quantity">

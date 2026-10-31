@@ -51,34 +51,75 @@ export default async function getBookDetails(idOrUrl) {
     const eurPrice = Number(row.price) > 0 ? Number(row.price) : 5.99;
     const rubPrice = Number(info.price_rub) > 0 ? Number(info.price_rub) : Math.round(eurPrice * rate);
 
+    const title = decodeHtmlEntities(row.name || "");
+    const author = info.author ? decodeHtmlEntities(info.author) : "";
+    const publisher = row.publisher || "Transbaltik";
+    const year = info.year ? String(info.year).trim() : "";
+    const isbn = info.isbn ? String(info.isbn).trim() : "";
+    const series = info.series ? decodeHtmlEntities(info.series) : "";
+    const genre = info.genre ? decodeHtmlEntities(info.genre) : "";
+    const code = info.code ? String(info.code).trim() : "";
+    const pages = info.pages ? String(info.pages).trim() : "";
+    const binding = info.binding ? decodeHtmlEntities(info.binding) : "";
+    const format = info.format ? String(info.format).trim() : "";
+    const age = info.age ? String(info.age).trim() : "";
+
+    // Generate comprehensive description if not explicitly provided
+    let description = info.description ? decodeHtmlEntities(info.description).trim() : "";
+    if (!description || description.length < 15) {
+      const parts = [`Книга «${title}»`];
+      if (author) parts.push(`авторства ${author}`);
+      if (publisher) parts.push(`выпущена издательством ${publisher}`);
+      if (year) parts.push(`в ${year} году`);
+      if (series) parts.push(`в серии «${series}»`);
+      description = `${parts.join(" ")}.`;
+      if (genre) description += ` Категория / жанр: ${genre}.`;
+      description += ` Издание доступно к заказу в каталоге Litera с быстрой доставкой и гарантией качества от поставщика Transbaltik.`;
+    }
+
     const additionalProperties = [];
-    if (info.author) additionalProperties.push({ name: "Автор", value: info.author });
-    if (row.publisher) additionalProperties.push({ name: "Издательство", value: row.publisher });
-    if (info.year) additionalProperties.push({ name: "Год издания", value: info.year });
-    if (info.isbn) additionalProperties.push({ name: "ISBN", value: info.isbn });
-    if (info.series) additionalProperties.push({ name: "Серия", value: info.series });
-    if (info.genre) additionalProperties.push({ name: "Жанр / Категория", value: info.genre });
-    if (info.code) additionalProperties.push({ name: "Артикул / Код", value: info.code });
+    if (author) additionalProperties.push({ name: "Автор", value: author });
+    if (publisher) additionalProperties.push({ name: "Издательство", value: publisher });
+    if (year) additionalProperties.push({ name: "Год издания", value: year });
+    if (isbn) additionalProperties.push({ name: "ISBN", value: isbn });
+    if (series) additionalProperties.push({ name: "Серия", value: series });
+    if (genre) additionalProperties.push({ name: "Жанр", value: genre });
+    if (code) additionalProperties.push({ name: "Артикул", value: code });
+    if (pages) additionalProperties.push({ name: "Количество страниц", value: pages });
+    if (binding) additionalProperties.push({ name: "Переплет", value: binding });
+    if (format) additionalProperties.push({ name: "Формат", value: format });
+    if (age) additionalProperties.push({ name: "Возраст", value: age });
     if (rubPrice) additionalProperties.push({ name: "Цена в рублях", value: `${rubPrice} ₽` });
+    additionalProperties.push({ name: "Поставщик", value: "Transbaltik" });
 
     return {
       id: row.id,
-      name: decodeHtmlEntities(row.name || ""),
-      title: decodeHtmlEntities(row.name || ""),
+      name: title,
+      title,
       price: eurPrice,
       currency: "EUR",
       price_rub: rubPrice,
-      description: info.description || `Книга «${row.name}» от издательства ${row.publisher || 'Transbaltik'}. Доступна к заказу в магазине Litera.`,
-      descriptionHtml: `<p>${info.description || `Книга «${row.name}» от издательства ${row.publisher || 'Transbaltik'}.`}</p>`,
+      description,
+      descriptionHtml: `<p>${description.replace(/\n\n+/g, "</p><p>").replace(/\n/g, "<br/>")}</p>`,
       mainImage: row.image ? { url: row.image } : null,
       images: row.image ? [{ url: row.image }] : [],
-      publisher: row.publisher,
-      author: info.author || "",
-      isbn: info.isbn || "",
-      brand: { name: row.publisher || "Transbaltik" },
+      image: row.image,
+      publisher,
+      author,
+      year,
+      isbn,
+      code,
+      series,
+      genre,
+      pages,
+      binding,
+      format,
+      age,
+      brand: { name: publisher },
       additionalProperties,
       url: `/book/${row.id}`,
       canonicalUrl: `/book/${row.id}`,
+      availability: "InStock",
     };
   } catch (err) {
     console.warn("getBookDetails error:", err.message);

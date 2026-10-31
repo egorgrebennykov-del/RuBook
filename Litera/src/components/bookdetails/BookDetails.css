@@ -104,14 +104,56 @@
 
 .book__author {
   font-size: var(--h3-font-size);
-  opacity: 0.75;
+  opacity: 0.85;
+  font-weight: 500;
+  color: var(--first-color);
+}
+
+.book__meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.book__meta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.5rem;
+  background-color: var(--container-color);
+  color: var(--title-color);
+  font-size: var(--small-font-size);
+  font-weight: 500;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.book__meta-badge i {
+  color: var(--first-color);
+  font-size: 1rem;
+}
+
+.book__price-container {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .book__price {
   align-self: flex-start;
   color: var(--title-color);
   font-size: var(--h2-font-size);
-  font-weight: 600;
+  font-weight: 700;
+}
+
+.book__price-rub {
+  font-size: 1.15rem;
+  font-weight: 500;
+  opacity: 0.75;
+  color: var(--text-color);
 }
 
 .book__add-cart {

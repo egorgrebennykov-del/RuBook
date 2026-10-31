@@ -110,6 +110,11 @@ export function parseSheetToBooks(sheet, publisherName = '', rate = DEFAULT_RATE
   let codeCol = -1;
   let seriesCol = -1;
   let genreCol = -1;
+  let descCol = -1;
+  let pagesCol = -1;
+  let bindingCol = -1;
+  let formatCol = -1;
+  let ageCol = -1;
 
   for (let r = 0; r < Math.min(25, data.length); r++) {
     const row = data[r];
@@ -154,6 +159,21 @@ export function parseSheetToBooks(sheet, publisherName = '', rate = DEFAULT_RATE
       if (genreCol === -1 && (val.includes('жанр') || val.includes('раздел') || val.includes('категория') || val.includes('тематика'))) {
         genreCol = c;
       }
+      if (descCol === -1 && (val.includes('аннотац') || val.includes('описание') || val.includes('синопсис') || val === 'о книге')) {
+        descCol = c;
+      }
+      if (pagesCol === -1 && (val.includes('страниц') || val === 'стр.' || val === 'стр' || val.includes('объем'))) {
+        pagesCol = c;
+      }
+      if (bindingCol === -1 && (val.includes('переплет') || val.includes('переплёт') || val.includes('тип обложки'))) {
+        bindingCol = c;
+      }
+      if (formatCol === -1 && (val.includes('формат') || val.includes('размер'))) {
+        formatCol = c;
+      }
+      if (ageCol === -1 && (val.includes('возраст') || val.includes('ограничен'))) {
+        ageCol = c;
+      }
     }
 
     if (nameCol !== -1 && (priceCol !== -1 || r > 5)) {
@@ -192,6 +212,11 @@ export function parseSheetToBooks(sheet, publisherName = '', rate = DEFAULT_RATE
     const code = codeCol !== -1 ? String(row[codeCol] || '').trim() : '';
     const series = seriesCol !== -1 ? String(row[seriesCol] || '').trim() : '';
     const genre = genreCol !== -1 ? String(row[genreCol] || '').trim() : '';
+    const description = descCol !== -1 ? String(row[descCol] || '').trim() : '';
+    const pages = pagesCol !== -1 ? String(row[pagesCol] || '').trim() : '';
+    const binding = bindingCol !== -1 ? String(row[bindingCol] || '').trim() : '';
+    const format = formatCol !== -1 ? String(row[formatCol] || '').trim() : '';
+    const age = ageCol !== -1 ? String(row[ageCol] || '').trim() : '';
 
     if (!image && code && code.startsWith('ASE')) {
       image = `https://cdn.ast.ru/v2/${code}/COVER/cover1__w340.jpg`;
@@ -211,6 +236,11 @@ export function parseSheetToBooks(sheet, publisherName = '', rate = DEFAULT_RATE
         code: code || null,
         series: series || null,
         genre: genre || null,
+        description: description || null,
+        pages: pages || null,
+        binding: binding || null,
+        format: format || null,
+        age: age || null,
         price_rub: rawPrice,
         price_eur: eurPrice,
         rate,
