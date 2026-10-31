@@ -1,15 +1,9 @@
-import dotenv from "dotenv";
-import https from "node:https";
-import fs from "node:fs";
-import path from "node:path";
-import process from "node:process";
-import { fileURLToPath } from "node:url";
-import * as XLSX from "xlsx";
+import https from 'node:https';
+import fs from 'node:fs';
+import path from 'node:path';
+import * as XLSX from 'xlsx';
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
-const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(scriptDir, "../.env") });
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const xlsxObj = XLSX?.default || XLSX;
 const { readFile, utils } = xlsxObj;
@@ -29,24 +23,19 @@ const DEFAULT_RATE = 84.0;
 
 function fetchUrl(url) {
   return new Promise((resolve, reject) => {
-    https.get(
-      url,
-      {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        },
-        rejectUnauthorized: false,
+    https.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       },
-      (res) => {
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          return fetchUrl(res.headers.location).then(resolve).catch(reject);
-        }
-        let data = "";
-        res.on("data", (chunk) => (data += chunk));
-        res.on("end", () => resolve({ status: res.statusCode, data }));
-      },
-    ).on("error", reject);
+      rejectUnauthorized: false
+    }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return fetchUrl(res.headers.location).then(resolve).catch(reject);
+      }
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve({ status: res.statusCode, data, headers: res.headers }));
+    }).on('error', reject);
   });
 }
 
@@ -58,55 +47,56 @@ function downloadBinary(url, dest) {
         return downloadBinary(res.headers.location, dest).then(resolve).catch(reject);
       }
       res.pipe(file);
-      file.on("finish", () => file.close(resolve));
-    }).on("error", (err) => {
+      file.on('finish', () => file.close(resolve));
+    }).on('error', (err) => {
       fs.unlink(dest, () => reject(err));
     });
   });
 }
 
 async function updateExchangeRateInDb(rate) {
-  console.log(`[Sync Action] Updating exchange rate in Supabase: EUR/RUB = ${rate}`);
+  console.log(`[Sync] Updating exchange rate in Supabase: EUR/RUB = ${rate}`);
   try {
     const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/exchange_rate?limit=1`, {
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
     });
     const rows = checkRes.ok ? await checkRes.json() : [];
     const payload = {
-      base_currency: "EUR",
-      quote_currency: "RUB",
+      base_currency: 'EUR',
+      quote_currency: 'RUB',
       rate,
-      rate_date: new Date().toISOString().split("T")[0],
-      updated_at: new Date().toISOString(),
+      rate_date: new Date().toISOString().split('T')[0],
+      updated_at: new Date().toISOString()
     };
 
     if (rows && rows.length > 0 && rows[0].id) {
       await fetch(`${SUPABASE_URL}/rest/v1/exchange_rate?id=eq.${rows[0].id}`, {
-        method: "PATCH",
+        method: 'PATCH',
         headers: {
           apikey: SUPABASE_KEY,
           Authorization: `Bearer ${SUPABASE_KEY}`,
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       });
     } else {
       await fetch(`${SUPABASE_URL}/rest/v1/exchange_rate`, {
-        method: "POST",
+        method: 'POST',
         headers: {
           apikey: SUPABASE_KEY,
           Authorization: `Bearer ${SUPABASE_KEY}`,
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       });
     }
   } catch (err) {
-    console.warn("[Sync Action] Could not update exchange rate in DB:", err.message);
+    console.warn('[Sync] Could not update exchange rate in DB:', err.message);
   }
 }
 
-export function parseSheetToBooks(sheet, publisherName = "", rate = DEFAULT_RATE, fileUrl = "", catalogUpdated = "") {
+// Universal parser for any book pricelist sheet
+export function parseSheetToBooks(sheet, publisherName = '', rate = DEFAULT_RATE, fileUrl = '', catalogUpdated = '') {
   const data = utils.sheet_to_json(sheet, { header: 1 });
   if (!data || data.length < 2) return [];
 
@@ -131,57 +121,60 @@ export function parseSheetToBooks(sheet, publisherName = "", rate = DEFAULT_RATE
     if (!Array.isArray(row)) continue;
 
     for (let c = 0; c < row.length; c++) {
-      const val = String(row[c] || "").trim().toLowerCase();
+      const val = String(row[c] || '').trim().toLowerCase();
       if (!val) continue;
 
       if (nameCol === -1 && (
-        val === "название" || val === "наименование" || val === "название книги" ||
-        val === "наименование товара" || val === "товар" || val === "наименование книги" ||
-        val === "книга" || val.includes("наименование оригинал") || val.includes("наименование книги") ||
-        (val.includes("наименование") && !val.includes("фирм") && !val.includes("организац"))
+        val === 'название' || val === 'наименование' || val === 'название книги' ||
+        val === 'наименование товара' || val === 'товар' || val === 'наименование книги' ||
+        val === 'книга' || val.includes('наименование оригинал') || val.includes('наименование книги') ||
+        val.includes('номенклатура') || val.includes('название игры') || val.startsWith('игры ') || val === 'игры' ||
+        (val.includes('наименование') && !val.includes('фирм') && !val.includes('организац')) ||
+        (val.includes('название') && !val.includes('нажмите') && !val.includes('фирм'))
       )) {
         nameCol = c;
       }
       if (priceCol === -1 && (
-        val.includes("цена") || val.includes("прайс") || val.includes("ррц") ||
-        val.includes("опт") || val.includes("стоимость") || val === "цена руб" || val === "цена, руб"
+        val.includes('цена') || val.includes('прайс') || val.includes('ррц') || val.includes('рмрц') ||
+        val.includes('опт') || val.includes('стоимость') || val === 'цена руб' || val === 'цена, руб' ||
+        val.includes('базовая цена')
       )) {
         priceCol = c;
       }
-      if (authorCol === -1 && (val === "автор" || val === "авторы" || val.includes("автор"))) {
+      if (authorCol === -1 && (val === 'автор' || val === 'авторы' || val.includes('автор'))) {
         authorCol = c;
       }
-      if (isbnCol === -1 && val.includes("isbn")) {
+      if (isbnCol === -1 && val.includes('isbn')) {
         isbnCol = c;
       }
-      if (yearCol === -1 && (val.includes("год") || val.includes("год изд"))) {
+      if (yearCol === -1 && (val.includes('год') || val.includes('год изд'))) {
         yearCol = c;
       }
-      if (imageCol === -1 && (val.includes("обложка") || val.includes("фото") || val.includes("картинка") || val.includes("изображ") || val.includes("ссылка на обложку") || val.includes("ссылка на фото"))) {
+      if (imageCol === -1 && (val.includes('обложка') || val.includes('фото') || val.includes('картинка') || val.includes('изображ') || val.includes('ссылка на обложку') || val.includes('ссылка на фото'))) {
         imageCol = c;
       }
-      if (codeCol === -1 && (val.includes("артикул") || val.includes("код") || val.includes("штрихкод") || val.includes("barcode"))) {
+      if (codeCol === -1 && (val.includes('артикул') || val.includes('код') || val.includes('штрихкод') || val.includes('barcode'))) {
         codeCol = c;
       }
-      if (seriesCol === -1 && val.includes("серия")) {
+      if (seriesCol === -1 && val.includes('серия')) {
         seriesCol = c;
       }
-      if (genreCol === -1 && (val.includes("жанр") || val.includes("раздел") || val.includes("категория") || val.includes("тематика"))) {
+      if (genreCol === -1 && (val.includes('жанр') || val.includes('раздел') || val.includes('категория') || val.includes('тематика'))) {
         genreCol = c;
       }
-      if (descCol === -1 && (val.includes("аннотац") || val.includes("описание") || val.includes("синопсис") || val === "о книге")) {
+      if (descCol === -1 && (val.includes('аннотац') || val.includes('описание') || val.includes('синопсис') || val === 'о книге')) {
         descCol = c;
       }
-      if (pagesCol === -1 && (val.includes("страниц") || val === "стр." || val === "стр" || val.includes("объем"))) {
+      if (pagesCol === -1 && (val.includes('страниц') || val === 'стр.' || val === 'стр' || val.includes('объем'))) {
         pagesCol = c;
       }
-      if (bindingCol === -1 && (val.includes("переплет") || val.includes("переплёт") || val.includes("тип обложки"))) {
+      if (bindingCol === -1 && (val.includes('переплет') || val.includes('переплёт') || val.includes('тип обложки'))) {
         bindingCol = c;
       }
-      if (formatCol === -1 && (val.includes("формат") || val.includes("размер"))) {
+      if (formatCol === -1 && (val.includes('формат') || val.includes('размер'))) {
         formatCol = c;
       }
-      if (ageCol === -1 && (val.includes("возраст") || val.includes("ограничен"))) {
+      if (ageCol === -1 && (val.includes('возраст') || val.includes('ограничен'))) {
         ageCol = c;
       }
     }
@@ -201,36 +194,36 @@ export function parseSheetToBooks(sheet, publisherName = "", rate = DEFAULT_RATE
     const row = data[r];
     if (!Array.isArray(row)) continue;
 
-    const rawName = String(row[nameCol] || "").replace(/\r?\n+/g, " ").trim();
+    const rawName = String(row[nameCol] || '').replace(/\r?\n+/g, ' ').trim();
     if (!rawName || rawName.length < 2) continue;
-    if (rawName.toLowerCase().includes("всего наименований") || rawName.toLowerCase().startsWith("итого")) continue;
+    if (rawName.toLowerCase().includes('всего наименований') || rawName.toLowerCase().startsWith('итого')) continue;
 
     const nameKey = rawName.toLowerCase();
     if (seenNames.has(nameKey)) continue;
     seenNames.add(nameKey);
 
-    let rawPrice = priceCol !== -1 ? Number(String(row[priceCol] || "").replace(/[^\d.,]/g, "").replace(",", ".")) : 0;
+    let rawPrice = priceCol !== -1 ? Number(String(row[priceCol] || '').replace(/[^\d.,]/g, '').replace(',', '.')) : 0;
     if (!Number.isFinite(rawPrice)) rawPrice = 0;
 
     const eurPrice = rawPrice > 0 ? Math.round((rawPrice / rate) * 100) / 100 : 0;
-    const author = authorCol !== -1 ? String(row[authorCol] || "").replace(/\r?\n+/g, " ").trim() : "";
-    const isbn = isbnCol !== -1 ? String(row[isbnCol] || "").trim() : "";
-    const year = yearCol !== -1 ? String(row[yearCol] || "").trim() : "";
-    let image = imageCol !== -1 ? String(row[imageCol] || "").trim() : "";
-    if (image && !image.startsWith("http")) image = "";
+    const author = authorCol !== -1 ? String(row[authorCol] || '').replace(/\r?\n+/g, ' ').trim() : '';
+    const isbn = isbnCol !== -1 ? String(row[isbnCol] || '').trim() : '';
+    const year = yearCol !== -1 ? String(row[yearCol] || '').trim() : '';
+    let image = imageCol !== -1 ? String(row[imageCol] || '').trim() : '';
+    if (image && !image.startsWith('http')) image = '';
 
-    const code = codeCol !== -1 ? String(row[codeCol] || "").trim() : "";
-    const series = seriesCol !== -1 ? String(row[seriesCol] || "").trim() : "";
-    const genre = genreCol !== -1 ? String(row[genreCol] || "").trim() : "";
-    const description = descCol !== -1 ? String(row[descCol] || "").trim() : "";
-    const pages = pagesCol !== -1 ? String(row[pagesCol] || "").trim() : "";
-    const binding = bindingCol !== -1 ? String(row[bindingCol] || "").trim() : "";
-    const format = formatCol !== -1 ? String(row[formatCol] || "").trim() : "";
-    const age = ageCol !== -1 ? String(row[ageCol] || "").trim() : "";
+    const code = codeCol !== -1 ? String(row[codeCol] || '').trim() : '';
+    const series = seriesCol !== -1 ? String(row[seriesCol] || '').trim() : '';
+    const genre = genreCol !== -1 ? String(row[genreCol] || '').trim() : '';
+    const description = descCol !== -1 ? String(row[descCol] || '').trim() : '';
+    const pages = pagesCol !== -1 ? String(row[pagesCol] || '').trim() : '';
+    const binding = bindingCol !== -1 ? String(row[bindingCol] || '').trim() : '';
+    const format = formatCol !== -1 ? String(row[formatCol] || '').trim() : '';
+    const age = ageCol !== -1 ? String(row[ageCol] || '').trim() : '';
 
-    if (!image && code && code.startsWith("ASE")) {
+    if (!image && code && code.startsWith('ASE')) {
       image = `https://cdn.ast.ru/v2/${code}/COVER/cover1__w340.jpg`;
-    } else if (image && image.includes("go.ast.ru") && code) {
+    } else if (image && image.includes('go.ast.ru') && code) {
       image = `https://cdn.ast.ru/v2/${code}/COVER/cover1__w340.jpg`;
     }
 
@@ -255,21 +248,21 @@ export function parseSheetToBooks(sheet, publisherName = "", rate = DEFAULT_RATE
         price_eur: eurPrice,
         rate,
         catalog_updated: catalogUpdated,
-        source: fileUrl,
-      },
+        source: fileUrl
+      }
     });
   }
 
   return books;
 }
 
-export async function runNightlySync() {
-  console.log("[Sync Action] Starting nightly Transbaltik books sync...");
-  const tmpDir = path.join(process.cwd(), ".cache", "transbaltik");
+export async function syncTransbaltik() {
+  console.log('[Sync] Starting Transbaltik catalog synchronization...');
+  const tmpDir = path.join(process.cwd(), '.cache', 'transbaltik');
   fs.mkdirSync(tmpDir, { recursive: true });
 
   // 1. Fetch pricelists page
-  const pageRes = await fetchUrl("https://www.transbaltik.ru/pricelists");
+  const pageRes = await fetchUrl('https://www.transbaltik.ru/pricelists');
   if (pageRes.status !== 200 || !pageRes.data) {
     throw new Error(`Failed to load transbaltik.ru/pricelists (status ${pageRes.status})`);
   }
@@ -278,12 +271,12 @@ export async function runNightlySync() {
   let currentRate = DEFAULT_RATE;
   const rateMatch = pageRes.data.match(/КУРС\s*EUR\/RUB:\s*([\d.,]+)/i);
   if (rateMatch && rateMatch[1]) {
-    const parsed = Number(rateMatch[1].replace(",", "."));
+    const parsed = Number(rateMatch[1].replace(',', '.'));
     if (Number.isFinite(parsed) && parsed > 0) {
       currentRate = parsed;
     }
   }
-  console.log(`[Sync Action] Current EUR/RUB rate: ${currentRate}`);
+  console.log(`[Sync] Detected EUR/RUB rate from site: ${currentRate}`);
   await updateExchangeRateInDb(currentRate);
 
   // 3. Parse table rows
@@ -296,63 +289,82 @@ export async function runNightlySync() {
     const tds = [];
     let tdMatch;
     while ((tdMatch = tdRegex.exec(rowHtml)) !== null) {
-      tds.push(tdMatch[1].replace(/<[^>]+>/g, "").trim());
+      tds.push(tdMatch[1].replace(/<[^>]+>/g, '').trim());
     }
     const hrefMatch = rowHtml.match(/href="([^"]+)"/i);
     if (tds.length >= 3 && hrefMatch) {
       pricelists.push({
-        name: tds[0].replace(/^!\s*/, ""),
+        name: tds[0].replace(/^!\s*/, ''),
         updated_at: tds[1],
         size: tds[2],
-        url: hrefMatch[1],
+        url: hrefMatch[1]
       });
     }
   }
-  console.log(`[Sync Action] Total pricelists detected: ${pricelists.length}`);
+  console.log(`[Sync] Found ${pricelists.length} pricelists on transbaltik.ru`);
 
+  // 4. Save metadata state of all catalogs
+  const latestCatalogDate = pricelists.reduce((latest, item) => {
+    return item.updated_at > latest ? item.updated_at : latest;
+  }, '');
+
+  const catalogStatus = {
+    synced_at: new Date().toISOString(),
+    latest_catalog_update: latestCatalogDate,
+    eur_rub_rate: currentRate,
+    total_catalogs: pricelists.length,
+    catalogs: pricelists
+  };
+
+  const publicDir = path.join(process.cwd(), 'public');
+  fs.mkdirSync(publicDir, { recursive: true });
+  fs.writeFileSync(path.join(publicDir, 'catalog-status.json'), JSON.stringify(catalogStatus, null, 2));
+
+  // 5. Select catalogs to sync: covers all publishers from Transbaltik pricelists
   const targetCatalogs = pricelists.filter((p) => {
-    const n = p.name.toLowerCase();
-    return (
-      n.includes("bubble") ||
-      n.includes("4games") ||
-      n.includes("абрикобукс") ||
-      n.includes("генезис") ||
-      n.includes("карьера пресс") ||
-      n.includes("мелик-пашаев") ||
-      n.includes("азбука") ||
-      n.includes("альпина") ||
-      n.includes("аст") ||
-      n.includes("эксмо") ||
-      n.includes("проф-пресс") ||
-      n.includes("mnogoknig")
-    );
-  }).slice(0, 10);
+    if (!p.url || !p.url.startsWith('https://www.transbaltik.ru/uploads/pricelists/')) return false;
+    const ext = path.extname(p.url).toLowerCase();
+    if (ext !== '.xlsx' && ext !== '.xls') return false;
+    // Skip massive files > 25MB to avoid runner out-of-memory
+    if (p.size && p.size.includes('MB') && parseFloat(p.size) > 25.0) return false;
+    return true;
+  });
+
+  console.log(`[Sync] Selected ${targetCatalogs.length} catalogs for book ingestion:`, targetCatalogs.map(c => c.name));
 
   const allBooksToInsert = [];
 
   for (const cat of targetCatalogs) {
     try {
-      const ext = path.extname(cat.url) || ".xlsx";
-      const safeName = cat.name.replace(/[^\p{L}\p{N}]/gu, "_").slice(0, 30);
+      const ext = path.extname(cat.url) || '.xlsx';
+      const safeName = cat.name.replace(/[^\p{L}\p{N}]/gu, '_').slice(0, 30);
       const localFile = path.join(tmpDir, `${safeName}${ext}`);
-
-      console.log(`[Sync Action] Downloading ${cat.name} (${cat.size})...`);
-      await downloadBinary(cat.url, localFile);
+      
+      if (!fs.existsSync(localFile) || fs.statSync(localFile).size < 100) {
+        console.log(`[Sync] Downloading ${cat.name} (${cat.size})...`);
+        await downloadBinary(cat.url, localFile);
+      } else {
+        console.log(`[Sync] Using cached ${cat.name}...`);
+      }
 
       const wb = readFile(localFile);
       for (const sName of wb.SheetNames) {
         const sheetBooks = parseSheetToBooks(wb.Sheets[sName], cat.name, currentRate, cat.url, cat.updated_at);
         if (sheetBooks.length > 0) {
+          // Take up to 250 books per sheet to ensure a diverse catalog across publishers
           const sample = sheetBooks.slice(0, 300);
+          console.log(`  -> Sheet "${sName}": ${sheetBooks.length} books found, adding ${sample.length}`);
           allBooksToInsert.push(...sample);
         }
       }
     } catch (err) {
-      console.warn(`[Sync Action] Error with ${cat.name}:`, err.message);
+      console.warn(`[Sync] Error processing catalog ${cat.name}:`, err.message);
     }
   }
 
-  // Deduplicate
+  console.log(`[Sync] Total books parsed from catalogs: ${allBooksToInsert.length}`);
+
+  // Deduplicate by name + publisher
   const uniqueMap = new Map();
   for (const b of allBooksToInsert) {
     const key = `${b.name}:::${b.publisher}`.toLowerCase();
@@ -361,38 +373,54 @@ export async function runNightlySync() {
     }
   }
   const uniqueBooks = Array.from(uniqueMap.values());
-  console.log(`[Sync Action] Ready to upsert ${uniqueBooks.length} books into Supabase`);
+  console.log(`[Sync] Unique books to insert: ${uniqueBooks.length}`);
 
+  // 6. Batch upsert into Supabase `books` table
   const BATCH_SIZE = 100;
-  let inserted = 0;
+  let insertedCount = 0;
 
   for (let i = 0; i < uniqueBooks.length; i += BATCH_SIZE) {
     const chunk = uniqueBooks.slice(i, i + BATCH_SIZE);
     try {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/books`, {
-        method: "POST",
+        method: 'POST',
         headers: {
           apikey: SUPABASE_KEY,
           Authorization: `Bearer ${SUPABASE_KEY}`,
-          "Content-Type": "application/json",
-          Prefer: "return=minimal",
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
         },
-        body: JSON.stringify(chunk),
+        body: JSON.stringify(chunk)
       });
       if (res.ok) {
-        inserted += chunk.length;
+        insertedCount += chunk.length;
+        console.log(`[Sync] Inserted batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(uniqueBooks.length / BATCH_SIZE)} (${insertedCount}/${uniqueBooks.length})`);
+      } else {
+        const errText = await res.text();
+        console.warn(`[Sync] Batch insert warning (${res.status}):`, errText);
       }
     } catch (err) {
-      console.warn("[Sync Action] Batch error:", err.message);
+      console.warn(`[Sync] Batch insert error:`, err.message);
     }
   }
 
-  console.log(`[Sync Action] Nightly sync finished successfully! ${inserted} books synced.`);
+  // Update total books count in catalog-status.json
+  catalogStatus.total_books_synced = insertedCount;
+  fs.writeFileSync(path.join(publicDir, 'catalog-status.json'), JSON.stringify(catalogStatus, null, 2));
+
+  console.log(`[Sync] Completed successfully! Synced ${insertedCount} books. Latest update: ${latestCatalogDate}`);
+  return catalogStatus;
 }
 
-runNightlySync()
-  .then(() => process.exit(0))
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  });
+// Run directly if invoked from command line
+if (process.argv[1] && process.argv[1].endsWith('syncTransbaltikBooks.js')) {
+  syncTransbaltik()
+    .then((status) => {
+      console.log('[Sync] Done:', status.latest_catalog_update);
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error('[Sync] Fatal error:', err);
+      process.exit(1);
+    });
+}

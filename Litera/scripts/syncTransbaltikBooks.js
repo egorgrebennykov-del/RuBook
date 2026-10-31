@@ -128,13 +128,16 @@ export function parseSheetToBooks(sheet, publisherName = '', rate = DEFAULT_RATE
         val === 'название' || val === 'наименование' || val === 'название книги' ||
         val === 'наименование товара' || val === 'товар' || val === 'наименование книги' ||
         val === 'книга' || val.includes('наименование оригинал') || val.includes('наименование книги') ||
-        (val.includes('наименование') && !val.includes('фирм') && !val.includes('организац'))
+        val.includes('номенклатура') || val.includes('название игры') || val.startsWith('игры ') || val === 'игры' ||
+        (val.includes('наименование') && !val.includes('фирм') && !val.includes('организац')) ||
+        (val.includes('название') && !val.includes('нажмите') && !val.includes('фирм'))
       )) {
         nameCol = c;
       }
       if (priceCol === -1 && (
-        val.includes('цена') || val.includes('прайс') || val.includes('ррц') ||
-        val.includes('опт') || val.includes('стоимость') || val === 'цена руб' || val === 'цена, руб'
+        val.includes('цена') || val.includes('прайс') || val.includes('ррц') || val.includes('рмрц') ||
+        val.includes('опт') || val.includes('стоимость') || val === 'цена руб' || val === 'цена, руб' ||
+        val.includes('базовая цена')
       )) {
         priceCol = c;
       }
@@ -317,25 +320,15 @@ export async function syncTransbaltik() {
   fs.mkdirSync(publicDir, { recursive: true });
   fs.writeFileSync(path.join(publicDir, 'catalog-status.json'), JSON.stringify(catalogStatus, null, 2));
 
-  // 5. Select catalogs to sync: prioritizes major active publishers & varied genres
-  // e.g. Bubble, 4Games, Абрикобукс, Генезис, Карьера Пресс, Мелик-Пашаев, etc.
+  // 5. Select catalogs to sync: covers all publishers from Transbaltik pricelists
   const targetCatalogs = pricelists.filter((p) => {
-    const n = p.name.toLowerCase();
-    return (
-      n.includes('bubble') ||
-      n.includes('4games') ||
-      n.includes('абрикобукс') ||
-      n.includes('генезис') ||
-      n.includes('карьера пресс') ||
-      n.includes('мелик-пашаев') ||
-      n.includes('азбука') ||
-      n.includes('альпина') ||
-      n.includes('аст') ||
-      n.includes('эксмо') ||
-      n.includes('проф-пресс') ||
-      n.includes('mnogoknig')
-    );
-  }).slice(0, 10); // Sync top 10 catalogs in this pass
+    if (!p.url || !p.url.startsWith('https://www.transbaltik.ru/uploads/pricelists/')) return false;
+    const ext = path.extname(p.url).toLowerCase();
+    if (ext !== '.xlsx' && ext !== '.xls') return false;
+    // Skip massive files > 25MB to avoid runner out-of-memory
+    if (p.size && p.size.includes('MB') && parseFloat(p.size) > 25.0) return false;
+    return true;
+  });
 
   console.log(`[Sync] Selected ${targetCatalogs.length} catalogs for book ingestion:`, targetCatalogs.map(c => c.name));
 
