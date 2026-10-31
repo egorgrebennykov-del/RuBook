@@ -95,6 +95,28 @@ async function updateExchangeRateInDb(rate) {
   }
 }
 
+export function isStrictDirectImage(url) {
+  if (!url || typeof url !== 'string') return false;
+  const str = url.trim();
+  if (!str.startsWith('http://') && !str.startsWith('https://')) return false;
+
+  const forbidden = [
+    'disk.yandex.', 'drive.google.com', 'cloud.mail.ru', 'dropbox.com',
+    'clck.', 'clc.li', '/game/', '/product/', '/catalog/', '/games/'
+  ];
+  if (forbidden.some(f => str.includes(f))) return false;
+
+  const cleanPath = str.split('?')[0].toLowerCase();
+  if (/\.(jpe?g|png|webp|avif)$/i.test(cleanPath)) return true;
+
+  const cdns = [
+    'cdn.ast.ru', 'cdn.eksmo.ru', 'pic.rosman.ru',
+    'storage.yandexcloud.net', 'static.bubble.ru',
+    'insales-cdn.com', 'insales.ru'
+  ];
+  return cdns.some(c => str.includes(c));
+}
+
 // Universal parser for any book pricelist sheet
 export function parseSheetToBooks(sheet, publisherName = '', rate = DEFAULT_RATE, fileUrl = '', catalogUpdated = '') {
   const data = utils.sheet_to_json(sheet, { header: 1 });
@@ -225,6 +247,11 @@ export function parseSheetToBooks(sheet, publisherName = '', rate = DEFAULT_RATE
       image = `https://cdn.ast.ru/v2/${code}/COVER/cover1__w340.jpg`;
     } else if (image && image.includes('go.ast.ru') && code) {
       image = `https://cdn.ast.ru/v2/${code}/COVER/cover1__w340.jpg`;
+    }
+
+    // STRICT: Only accept books/items with verified real direct photographic cover images!
+    if (!isStrictDirectImage(image)) {
+      continue;
     }
 
     books.push({

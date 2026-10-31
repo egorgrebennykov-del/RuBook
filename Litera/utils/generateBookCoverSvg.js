@@ -160,10 +160,7 @@ export function generateBookCoverSvg({
   ${cleanSeries ? `
   <text x="156" y="388" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="9" font-weight="500" fill="#cbd5e1" opacity="0.75">
     ${escapeXml(cleanSeries.slice(0, 30))}
-  </text>` : `
-  <text x="156" y="388" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="9" font-weight="600" letter-spacing="1.5" fill="${palette.accent}" opacity="0.75">
-    КАТАЛОГ 2026
-  </text>`}
+  </text>` : ""}
 </svg>`;
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
