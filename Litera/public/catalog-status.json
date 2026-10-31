@@ -1,13 +1,37 @@
 {
-  "synced_at": "2026-10-31T21:56:26.003Z",
-  "total_publishers_processed": 13,
-  "total_books_added": 1498,
+  "synced_at": "2026-10-31T22:09:16.649Z",
+  "total_publishers_processed": 38,
+  "total_books_added": 5007,
   "processed_publishers": [
     {
       "publisher": "Bubble",
-      "books_count": 6,
+      "books_count": 150,
       "updated_at": "2026-10-05 09:33:12",
       "url": "https://www.transbaltik.ru/uploads/pricelists/bubble051026.xlsx"
+    },
+    {
+      "publisher": "GaGa Games",
+      "books_count": 150,
+      "updated_at": "2026-10-19 11:45:37",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/gaga191026.xlsx"
+    },
+    {
+      "publisher": "MACards",
+      "books_count": 150,
+      "updated_at": "2026-10-01 09:52:51",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/macards011026.xlsx"
+    },
+    {
+      "publisher": "Magic kniga",
+      "books_count": 150,
+      "updated_at": "2026-10-15 09:12:25",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/magic151026.xlsx"
+    },
+    {
+      "publisher": "Абрикос",
+      "books_count": 117,
+      "updated_at": "2026-10-01 12:43:43",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/abrikobuks011026.xlsx"
     },
     {
       "publisher": "Аввалон",
@@ -28,6 +52,54 @@
       "url": "https://www.transbaltik.ru/uploads/pricelists/alpaka291026.xlsx"
     },
     {
+      "publisher": "АРТКЛАССИКА",
+      "books_count": 149,
+      "updated_at": "2026-10-07 10:09:33",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/artklassika071026.xls"
+    },
+    {
+      "publisher": "АСТ",
+      "books_count": 150,
+      "updated_at": "2026-10-30 14:14:25",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/ast301026.xlsx"
+    },
+    {
+      "publisher": "Аякс-Пресс",
+      "books_count": 93,
+      "updated_at": "2026-10-02 15:14:21",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/ayax021026.xlsx"
+    },
+    {
+      "publisher": "Белый Город",
+      "books_count": 149,
+      "updated_at": "2026-10-15 10:02:21",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/belijgorod151026.xls"
+    },
+    {
+      "publisher": "Гаятри",
+      "books_count": 150,
+      "updated_at": "2026-10-28 15:39:13",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/livebook280926.xlsx"
+    },
+    {
+      "publisher": "Генезис",
+      "books_count": 150,
+      "updated_at": "2026-10-20 17:51:51",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/genezis201026.xlsx"
+    },
+    {
+      "publisher": "Деловая книга",
+      "books_count": 40,
+      "updated_at": "2026-07-13 08:20:12",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/delovajakniga130726.xls"
+    },
+    {
+      "publisher": "Детская и юношеская книга",
+      "books_count": 150,
+      "updated_at": "2026-10-01 12:07:20",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/detskajaijunosheskaja011026.xlsx"
+    },
+    {
       "publisher": "Детская литература",
       "books_count": 150,
       "updated_at": "2026-10-01 10:46:09",
@@ -40,10 +112,70 @@
       "url": "https://www.transbaltik.ru/uploads/pricelists/karo011026.xls"
     },
     {
+      "publisher": "Кучково Поле Музеон",
+      "books_count": 132,
+      "updated_at": "2026-10-01 13:55:38",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/kuchkovopolemuzeon011026.xlsx"
+    },
+    {
+      "publisher": "Лаборатория знаний",
+      "books_count": 150,
+      "updated_at": "2026-10-01 14:40:50",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/laboratorijaznanij011026.xls"
+    },
+    {
+      "publisher": "Лами��ария",
+      "books_count": 39,
+      "updated_at": "2026-10-27 16:37:46",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/laminarija271026.xls"
+    },
+    {
+      "publisher": "ЛИНГВО-БУК",
+      "books_count": 149,
+      "updated_at": "2026-10-08 08:56:00",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/lingvobook081026.xlsx"
+    },
+    {
       "publisher": "Мир Хобби",
       "books_count": 15,
       "updated_at": "2026-10-05 09:12:08",
       "url": "https://www.transbaltik.ru/uploads/pricelists/hobbyworld051026.xls"
+    },
+    {
+      "publisher": "МИФ",
+      "books_count": 150,
+      "updated_at": "2026-10-27 10:44:22",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/mif271026.xlsx"
+    },
+    {
+      "publisher": "Низа Гамс",
+      "books_count": 50,
+      "updated_at": "2026-10-05 13:39:32",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/niza051026.xlsx"
+    },
+    {
+      "publisher": "Образовательный проект",
+      "books_count": 150,
+      "updated_at": "2026-10-26 12:21:06",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/vako261026.xls"
+    },
+    {
+      "publisher": "Образовательный проект",
+      "books_count": 150,
+      "updated_at": "2026-10-26 12:21:52",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/vakosha261026.xls"
+    },
+    {
+      "publisher": "Попурри",
+      "books_count": 182,
+      "updated_at": "2026-10-28 15:32:56",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/popuri281026.xls"
+    },
+    {
+      "publisher": "Попурри на белорусском",
+      "books_count": 150,
+      "updated_at": "2026-10-28 15:33:29",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/popuribel281026.xls"
     },
     {
       "publisher": "Росмэн",
@@ -59,9 +191,15 @@
     },
     {
       "publisher": "Синдбад",
-      "books_count": 134,
+      "books_count": 149,
       "updated_at": "2026-10-13 12:55:35",
       "url": "https://www.transbaltik.ru/uploads/pricelists/sindbad131026.xlsx"
+    },
+    {
+      "publisher": "Степ Пазл",
+      "books_count": 150,
+      "updated_at": "2026-10-02 13:51:34",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/steppazl021026.xls"
     },
     {
       "publisher": "Стрекоза",
@@ -70,10 +208,22 @@
       "url": "https://www.transbaltik.ru/uploads/pricelists/strekoza271026.xls"
     },
     {
+      "publisher": "Счастье внутри",
+      "books_count": 150,
+      "updated_at": "2026-10-30 16:39:18",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/schastje301026.xlsx"
+    },
+    {
       "publisher": "Терминал-книга",
       "books_count": 150,
       "updated_at": "2026-10-30 13:52:53",
       "url": "https://www.transbaltik.ru/uploads/pricelists/terminal301026.xlsx"
+    },
+    {
+      "publisher": "Эксел Медиа",
+      "books_count": 150,
+      "updated_at": "2026-10-29 16:57:38",
+      "url": "https://www.transbaltik.ru/uploads/pricelists/exel291026.xls"
     },
     {
       "publisher": "Эксмо Новинки 02.11.2026-06.11.2026",

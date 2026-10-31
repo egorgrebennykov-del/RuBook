@@ -102,65 +102,24 @@ export function generateBookCoverSvg({
     </radialGradient>
   </defs>
 
-  <!-- Cover Background -->
-  <rect width="300" height="440" rx="8" fill="url(#bgGrad)" />
-  <rect width="300" height="440" rx="8" fill="url(#glowGrad)" />
+  <!-- Clean modern card -->
+  <rect width="300" height="440" rx="8" fill="#1e293b" />
+  <rect x="2" y="2" width="296" height="436" rx="6" fill="#0f172a" />
 
-  <!-- Book Spine 3D Effect -->
-  <rect x="0" y="0" width="16" height="440" rx="4" fill="url(#spineGrad)" />
-  <line x1="16" y1="0" x2="16" y2="440" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" />
-  <line x1="20" y1="0" x2="20" y2="440" stroke="rgba(0,0,0,0.25)" stroke-width="1" />
-
-  <!-- Elegant Foil Frames -->
-  <rect x="26" y="20" width="250" height="400" rx="4" fill="none" stroke="${palette.border}" stroke-opacity="0.35" stroke-width="1.2" />
-  <rect x="30" y="24" width="242" height="392" rx="2" fill="none" stroke="${palette.border}" stroke-opacity="0.18" stroke-width="0.8" />
-
-  <!-- Corner Flourishes -->
-  <circle cx="34" cy="28" r="2" fill="${palette.accent}" opacity="0.6" />
-  <circle cx="268" cy="28" r="2" fill="${palette.accent}" opacity="0.6" />
-  <circle cx="34" cy="412" r="2" fill="${palette.accent}" opacity="0.6" />
-  <circle cx="268" cy="412" r="2" fill="${palette.accent}" opacity="0.6" />
-
-  <!-- Top Publisher Header -->
-  <text x="156" y="52" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" font-weight="700" letter-spacing="2" fill="${palette.accent}" opacity="0.9">
-    ${escapeXml(cleanPublisher.slice(0, 24))}
-  </text>
-
-  <!-- Top Line Divider -->
-  <line x1="110" y1="62" x2="202" y2="62" stroke="${palette.border}" stroke-opacity="0.3" stroke-width="0.75" />
-
-  <!-- Author Name -->
-  ${cleanAuthor ? `<text x="156" y="96" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="13" font-style="italic" font-weight="500" fill="#f1f5f9" opacity="0.92">
-    ${escapeXml(cleanAuthor.slice(0, 32))}
-  </text>` : ""}
-
-  <!-- Central Ornamental Emblem -->
-  <g transform="translate(156, 140)">
-    <circle cx="0" cy="0" r="22" fill="none" stroke="${palette.border}" stroke-opacity="0.3" stroke-width="1" />
-    <circle cx="0" cy="0" r="18" fill="none" stroke="${palette.border}" stroke-opacity="0.15" stroke-dasharray="2,2" />
-    <!-- Book Emblem Icon -->
-    <path d="M-9,-6 C-5,-8 -1,-6 0,-4 C1,-6 5,-8 9,-6 L9,7 C5,5 1,7 0,9 C-1,7 -5,5 -9,7 Z" fill="none" stroke="${palette.accent}" stroke-width="1.4" stroke-linejoin="round" />
-    <line x1="0" y1="-4" x2="0" y2="9" stroke="${palette.accent}" stroke-width="1" />
+  <!-- Subtle book icon -->
+  <g transform="translate(150, 160)" stroke="#64748b" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-24,-14 C-12,-18 0,-14 0,-10 C0,-14 12,-18 24,-14 L24,24 C12,20 0,24 0,28 C0,24 -12,20 -24,24 Z" />
+    <line x1="0" y1="-10" x2="0" y2="28" />
   </g>
 
-  <!-- Book Title -->
-  <g transform="translate(156, ${Math.max(startY, 185)})">
+  <!-- Title -->
+  <g transform="translate(150, 240)">
     ${titleLines.map((line, idx) => `
-      <text x="0" y="${idx * 25}" text-anchor="middle" font-family="'Merriweather', Georgia, 'Times New Roman', serif" font-size="16" font-weight="700" fill="#ffffff" letter-spacing="0.3">
+      <text x="0" y="${idx * 22}" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="500" fill="#cbd5e1">
         ${escapeXml(line)}
       </text>
     `).join("")}
   </g>
-
-  <!-- Bottom Divider -->
-  <line x1="120" y1="365" x2="192" y2="365" stroke="${palette.border}" stroke-opacity="0.3" stroke-width="0.75" />
-  <polygon points="156,363 158,365 156,367 154,365" fill="${palette.accent}" opacity="0.8" />
-
-  <!-- Bottom Series / Edition -->
-  ${cleanSeries ? `
-  <text x="156" y="388" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="9" font-weight="500" fill="#cbd5e1" opacity="0.75">
-    ${escapeXml(cleanSeries.slice(0, 30))}
-  </text>` : ""}
 </svg>`;
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;

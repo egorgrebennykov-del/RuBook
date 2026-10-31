@@ -25,7 +25,7 @@ export default function enhancedImageUrl(sourceUrl) {
   }
 
   // Yandex Disk public view links -> proxy via backend for real preview bytes
-  if (resolved.includes("disk.yandex.ru/i/")) {
+  if (resolved.includes("disk.yandex.") || resolved.includes("disk.360.yandex.")) {
     return `/api/enhance-image?url=${encodeURIComponent(resolved)}`;
   }
 

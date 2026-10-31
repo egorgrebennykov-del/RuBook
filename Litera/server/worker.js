@@ -280,7 +280,7 @@ async function handleEnhanceImage(request, urlObj, ctx) {
   }
 
   // Yandex Disk public view links
-  if (resolved.includes("disk.yandex.ru/i/")) {
+  if (resolved.includes("disk.yandex.") || resolved.includes("disk.360.yandex.")) {
     const cachedYandex = yandexPreviewCache.get(resolved);
     if (cachedYandex && Date.now() - cachedYandex.time < 12 * 3600 * 1000) {
       return Response.redirect(cachedYandex.url, 302);

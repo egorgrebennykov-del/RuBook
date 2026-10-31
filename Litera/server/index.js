@@ -132,7 +132,7 @@ const nodeYandexPreviewCache = new Map();
 
 async function fetchSourceImage(sourceUrl) {
   let currentUrl = sourceUrl;
-  if (currentUrl.includes("disk.yandex.ru/i/")) {
+  if (currentUrl.includes("disk.yandex.") || currentUrl.includes("disk.360.yandex.")) {
     const cached = nodeYandexPreviewCache.get(currentUrl);
     if (cached && Date.now() - cached.time < 12 * 3600 * 1000) {
       currentUrl = cached.url;
