@@ -4,6 +4,7 @@ import CarouselControls from "../carouselcontrols/CarouselControls";
 import getHomepageBooks, { getCachedHomepageBooks } from "../../../utils/getHomepageBooks";
 import BookImage from "../common/BookImage";
 import decodeHtmlEntities from "../../../utils/decodeHtmlEntities";
+import { hasValidImageUrl } from "../../../utils/enhancedImageUrl";
 import { useLanguage } from "../../context/languageContext";
 import SmallAnnouncements from "../announcements/SmallAnnouncements";
 import LargeAnnouncementRoulette from "../announcements/LargeAnnouncementRoulette";
@@ -35,6 +36,7 @@ export default function Home() {
   const [books, setBooks] = useState(() => getCachedHomepageBooks() ?? []);
   const [booksError, setBooksError] = useState(false);
   const [booksReady, setBooksReady] = useState(() => Boolean(getCachedHomepageBooks()));
+  const [failedUrls, setFailedUrls] = useState(() => new Set());
   const [announcements, setAnnouncements] = useState(
     () => getCachedActiveAnnouncements() ?? [],
   );
@@ -133,7 +135,9 @@ export default function Home() {
           <div className="carousel">
             <div className="home__swiper swiper">
               <div className="swiper-wrapper">
-                {books.map((book, index) => (
+                {books
+                  .filter((b) => b.image && hasValidImageUrl(b.image) && !failedUrls.has(b.url))
+                  .map((book, index) => (
                   <article
                     className="home__article swiper-slide"
                     key={book.url}
@@ -177,6 +181,9 @@ export default function Home() {
                         loading={index < 4 ? "eager" : "lazy"}
                         decoding="async"
                         fetchPriority={index < 2 ? "high" : "auto"}
+                        onError={() => {
+                          setFailedUrls((prev) => new Set(prev).add(book.url));
+                        }}
                       />
                       <span className="home__book-title">
                         {decodeHtmlEntities(book.title)}

@@ -1,3 +1,5 @@
+import { hasValidImageUrl } from "./enhancedImageUrl.js";
+
 const env =
   (typeof import.meta !== "undefined" && import.meta.env) ||
   globalThis.process?.env ||
@@ -47,7 +49,9 @@ export default async function getNewBooks() {
       }
 
       const rows = await response.json();
-      const products = (rows || []).map((b) => ({
+      const products = (rows || [])
+        .filter((b) => b && b.image && hasValidImageUrl(b.image))
+        .map((b) => ({
         id: b.id,
         title: b.name,
         name: b.name,

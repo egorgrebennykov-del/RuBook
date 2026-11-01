@@ -6,6 +6,7 @@ import getExchangeRate, { getCachedExchangeRate, DEFAULT_RATE } from "../../../u
 import getBookPicks, { getCachedBookPicks } from "../../../utils/getBookPicks";
 import BookImage from "../common/BookImage";
 import decodeHtmlEntities from "../../../utils/decodeHtmlEntities";
+import { hasValidImageUrl } from "../../../utils/enhancedImageUrl";
 import { useLanguage } from "../../context/languageContext";
 import "./Featured.css";
 
@@ -43,6 +44,7 @@ export default function Featured() {
   const userId = getCookieUser()?.id;
   const needsCartCheck = isLoggedIn() && Boolean(userId);
   const cartReady = !needsCartCheck || cartLoaded;
+  const [failedBookUrls, setFailedBookUrls] = useState(() => new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -175,6 +177,9 @@ export default function Featured() {
   };
 
   const eligibleBooks = books.filter((book) => {
+    if (!book.image || !hasValidImageUrl(book.image) || failedBookUrls.has(book.url)) {
+      return false;
+    }
     const price = getEuroPrice(book, rate);
     return price !== null && price >= 2;
   });
@@ -252,6 +257,9 @@ export default function Featured() {
                       loading={index < 6 ? "eager" : "lazy"}
                       decoding="async"
                       fetchPriority={index < 4 ? "high" : "auto"}
+                      onError={() => {
+                        setFailedBookUrls((prev) => new Set(prev).add(book.url));
+                      }}
                     />
                     <h2 className="results__title">{decodeHtmlEntities(book.title)}</h2>
                     {isPrivileged() && book.store && (

@@ -1,3 +1,22 @@
+export function hasValidImageUrl(sourceUrl) {
+  if (!sourceUrl || typeof sourceUrl !== "string") return false;
+  const str = sourceUrl.trim();
+  if (!str.startsWith("http://") && !str.startsWith("https://")) return false;
+  if (str.length < 10) return false;
+  const lower = str.toLowerCase();
+  if (
+    lower.includes(".html") ||
+    lower.includes(".htm") ||
+    lower.includes(".php") ||
+    lower.includes("route=product") ||
+    lower.includes("product_id=") ||
+    lower.includes("go.ast.ru/")
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export default function enhancedImageUrl(sourceUrl) {
   if (!sourceUrl || typeof sourceUrl !== "string") return "";
 

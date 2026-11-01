@@ -1,3 +1,5 @@
+import { hasValidImageUrl } from "./enhancedImageUrl.js";
+
 const env =
   (typeof import.meta !== "undefined" && import.meta.env) ||
   globalThis.process?.env ||
@@ -48,7 +50,9 @@ export default async function getDiscountSnapshot() {
 
       const rows = await response.json();
       const discounts = [15, 20, 25, 30, 10];
-      const products = (rows || []).map((b, idx) => {
+      const products = (rows || [])
+        .filter((b) => b && b.image && hasValidImageUrl(b.image))
+        .map((b, idx) => {
         const discountPct = discounts[idx % discounts.length];
         const basePrice = Number(b.price) || 6.99;
         const discountedPrice = Math.round((basePrice * (1 - discountPct / 100)) * 100) / 100;

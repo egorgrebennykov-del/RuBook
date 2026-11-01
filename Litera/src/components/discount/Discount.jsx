@@ -6,6 +6,7 @@ import getExchangeRate, { getCachedExchangeRate, DEFAULT_RATE } from "../../../u
 import getDiscountSnapshot, { getCachedDiscountSnapshot } from "../../../utils/getDiscountSnapshot";
 import BookImage from "../common/BookImage";
 import decodeHtmlEntities from "../../../utils/decodeHtmlEntities";
+import { hasValidImageUrl } from "../../../utils/enhancedImageUrl";
 import { useLanguage } from "../../context/languageContext";
 import "./Discount.css";
 
@@ -67,6 +68,7 @@ export default function Discount() {
   const navigate = useNavigate();
   const userId = getCookieUser()?.id;
   const needsCartCheck = isLoggedIn() && Boolean(userId);
+  const [failedBookUrls, setFailedBookUrls] = useState(() => new Set());
   const [snapshot, setSnapshot] = useState(() => {
     const cached = getCachedDiscountSnapshot();
     return cached ? normalizeSnapshot(cached) : null;
@@ -264,7 +266,9 @@ export default function Discount() {
         </div>
       ) : (
         <div className="deals__grid">
-          {products.map((book, index) => {
+          {products
+            .filter((book) => book.image && hasValidImageUrl(book.image) && !failedBookUrls.has(book.url))
+            .map((book, index) => {
             const activeRate = rate || 20.2;
             const currency = "EUR";
             const price = Math.round((book.price / activeRate) * 100) / 100;
@@ -314,6 +318,9 @@ export default function Discount() {
                       loading={index < 6 ? "eager" : "lazy"}
                       decoding="async"
                       fetchPriority={index < 4 ? "high" : "auto"}
+                      onError={() => {
+                        setFailedBookUrls((prev) => new Set(prev).add(book.url));
+                      }}
                     />
                     <span className="deals__badge">
                       -{book.discountPercent}%

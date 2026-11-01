@@ -40,14 +40,15 @@ export default function BookImage({
   const currentSrc = overrideSrc ?? (initialEnhanced || fallbackSvg);
   const isDataUri = Boolean(currentSrc?.startsWith("data:"));
 
-  // Fail gracefully to instant SVG if network image takes longer than 2.2 seconds
+  // Fail gracefully if network image takes longer than 8 seconds
   useEffect(() => {
     if (!currentSrc || isDataUri || failed || loaded) return;
     const timer = setTimeout(() => {
       setFailed(true);
-    }, 2200);
+      onError?.();
+    }, 8000);
     return () => clearTimeout(timer);
-  }, [currentSrc, isDataUri, failed, loaded]);
+  }, [currentSrc, isDataUri, failed, loaded, onError]);
 
   const handleLoad = (e) => {
     setLoaded(true);
@@ -59,7 +60,6 @@ export default function BookImage({
       // Try backend enhance proxy first
       setOverrideSrc(`/api/enhance-image?url=${encodeURIComponent(currentSrc)}`);
     } else {
-      // Graceful fallback to dynamic SVG book cover
       setFailed(true);
       onError?.(e);
     }
@@ -74,11 +74,6 @@ export default function BookImage({
       decoding={decoding}
       fetchPriority={fetchPriority}
       referrerPolicy="no-referrer"
-      style={{
-        backgroundImage: `url("${fallbackSvg}")`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }}
       onLoad={handleLoad}
       onError={handleError}
     />

@@ -6,6 +6,7 @@ import { addToCart, getCart, removeFromCart } from "../../../utils/cart";
 import { getCookieUser, isLoggedIn, isPrivileged } from "../../../utils/auth";
 import BookImage from "../common/BookImage";
 import decodeHtmlEntities from "../../../utils/decodeHtmlEntities";
+import { hasValidImageUrl } from "../../../utils/enhancedImageUrl";
 import { useLanguage } from "../../context/languageContext";
 import "./SearchResults.css";
 
@@ -352,7 +353,14 @@ export default function SearchResults() {
       )}
 
       <div className="results__grid">
-        {books.map((book, i) => {
+        {books
+          .filter(
+            (b) =>
+              b.image &&
+              hasValidImageUrl(b.image) &&
+              imageStatuses.get(b.url) !== "failed",
+          )
+          .map((book, i) => {
             const coverLoaded = imageStatuses.get(book.url) === "loaded";
             const cartItem = cartItems.get(book.url);
             const quantity = Math.max(

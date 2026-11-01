@@ -6,6 +6,7 @@ import getExchangeRate, { getCachedExchangeRate, DEFAULT_RATE } from "../../../u
 import getNewBooks, { getCachedNewBooks } from "../../../utils/getNewBooks";
 import BookImage from "../common/BookImage";
 import decodeHtmlEntities from "../../../utils/decodeHtmlEntities";
+import { hasValidImageUrl } from "../../../utils/enhancedImageUrl";
 import { useLanguage } from "../../context/languageContext";
 import "./NewBooks.css";
 
@@ -58,6 +59,7 @@ export default function NewBooks() {
   const userId = getCookieUser()?.id;
   const needsCartCheck = isLoggedIn() && Boolean(userId);
   const cartReady = !needsCartCheck || cartLoaded;
+  const [failedBookUrls, setFailedBookUrls] = useState(() => new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -242,7 +244,9 @@ export default function NewBooks() {
 
       {status === "ready" && products.length > 0 && (
         <div className="new-books__grid">
-          {products.map((book, index) => {
+          {products
+            .filter((book) => book.image && hasValidImageUrl(book.image) && !failedBookUrls.has(book.url))
+            .map((book, index) => {
             const currency = "EUR";
             const price = Number(book.price) || 5.99;
             const preview = {
@@ -285,6 +289,9 @@ export default function NewBooks() {
                     loading={index < 6 ? "eager" : "lazy"}
                     decoding="async"
                     fetchPriority={index < 4 ? "high" : "auto"}
+                    onError={() => {
+                      setFailedBookUrls((prev) => new Set(prev).add(book.url));
+                    }}
                   />
                   <h2 className="results__title">{decodeHtmlEntities(book.title)}</h2>
                   {isPrivileged() && (
