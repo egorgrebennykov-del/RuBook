@@ -170,10 +170,30 @@ function rankAndSort(books, query) {
   });
 }
 
+function hasValidImageUrl(url) {
+  if (!url || typeof url !== "string") return false;
+  const str = url.trim();
+  if (!str.startsWith("http://") && !str.startsWith("https://")) return false;
+  if (str.length < 10) return false;
+  const lower = str.toLowerCase();
+  if (
+    lower.includes(".html") ||
+    lower.includes(".htm") ||
+    lower.includes(".php") ||
+    lower.includes("route=product") ||
+    lower.includes("product_id=") ||
+    lower.includes("go.ast.ru/")
+  ) {
+    return false;
+  }
+  return true;
+}
+
 function normalizeDbBook(row) {
   if (!row) return null;
   const info = row.info || {};
   const eurPrice = Number(row.price) > 0 ? Number(row.price) : 5.99;
+  const validImage = hasValidImageUrl(row.image) ? row.image : null;
 
   return {
     id: row.id,
@@ -181,7 +201,7 @@ function normalizeDbBook(row) {
     price: eurPrice,
     currency: "EUR",
     url: `/book/${row.id}`,
-    image: row.image || null,
+    image: validImage,
     store: row.publisher || "Transbaltik",
     publisher: row.publisher || "Издательство",
     author: decodeHtmlEntities(info.author || ""),
@@ -200,12 +220,12 @@ export default async function searchBooks(searchBook, options = {}) {
   const onProgress = typeof options === "function" ? options : options.onProgress;
 
   try {
-    let url = `${TABLE_URL}?select=id,name,price,publisher,image,info&order=id.asc&limit=100`;
+    let url = `${TABLE_URL}?select=id,name,price,publisher,image,info&image=not.is.null&order=id.asc&limit=100`;
 
     if (query) {
       const orCondition = buildOrQuery(query);
       if (orCondition) {
-        url = `${TABLE_URL}?select=id,name,price,publisher,image,info&or=${encodeURIComponent(orCondition)}&order=id.asc&limit=150`;
+        url = `${TABLE_URL}?select=id,name,price,publisher,image,info&image=not.is.null&or=${encodeURIComponent(orCondition)}&order=id.asc&limit=150`;
       }
     }
 
@@ -216,7 +236,9 @@ export default async function searchBooks(searchBook, options = {}) {
     }
 
     const rows = await response.json();
-    const normalized = (rows || []).map((r) => normalizeDbBook(r));
+    const normalized = (rows || [])
+      .map((r) => normalizeDbBook(r))
+      .filter((b) => b && Boolean(b.image));
 
     const sorted = rankAndSort(normalized, query);
     if (typeof onProgress === "function") {

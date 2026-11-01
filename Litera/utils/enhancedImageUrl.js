@@ -13,8 +13,16 @@ export default function enhancedImageUrl(sourceUrl) {
 
   let resolved = sourceUrl.trim();
 
-  // go.ast.ru are HTML redirect pages, not direct images
-  if (resolved.includes("go.ast.ru/")) {
+  // Reject HTML web pages or PHP product links
+  const lower = resolved.toLowerCase();
+  if (
+    lower.includes(".html") ||
+    lower.includes(".htm") ||
+    lower.includes(".php") ||
+    lower.includes("route=product") ||
+    lower.includes("product_id=") ||
+    lower.includes("go.ast.ru/")
+  ) {
     return "";
   }
 

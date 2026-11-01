@@ -137,21 +137,56 @@ export const setUserCookie = ({ id, firstName, lastName, email, role, status, ro
   document.cookie = `user=${value}; max-age=${7 * 24 * 60 * 60}; path=/; SameSite=Lax`;
 };
 
-async function findByEmail(email) {
+async function findByEmail(email, { includePassword = true } = {}) {
   const normalized = (email || "").trim();
   if (!normalized) return null;
-  const response = await fetch(
-    `${TABLE_URL}?select=id,firstName,lastName,email,password_hash,status,role&email=ilike.${encodeURIComponent(normalized)}&limit=1`,
-    { headers },
-  );
-  if (!response.ok) throw new Error("Server error, try again later");
-  return (await response.json())[0] ?? null;
+
+  const selectFields = includePassword
+    ? "id,firstName,lastName,email,password_hash,status,role"
+    : "id,firstName,lastName,email,status,role";
+
+  // 1. Try direct Supabase PostgREST
+  try {
+    const response = await fetch(
+      `${TABLE_URL}?select=${selectFields}&email=ilike.${encodeURIComponent(normalized)}&limit=1`,
+      { headers },
+    );
+    if (response.ok) {
+      const rows = await response.json();
+      return rows?.[0] ?? null;
+    }
+  } catch (err) {
+    console.warn("[findByEmail] direct Supabase fetch error, trying backend proxy:", err?.message);
+  }
+
+  // 2. Fallback to backend proxy (/api/auth/find-by-email)
+  try {
+    const proxyRes = await fetch(
+      `/api/auth/find-by-email?email=${encodeURIComponent(normalized)}&includePassword=${includePassword ? "1" : "0"}`,
+    );
+    if (proxyRes.ok) {
+      const result = await proxyRes.json();
+      return result?.user ?? null;
+    }
+  } catch (err) {
+    console.warn("[findByEmail] backend proxy error:", err?.message);
+  }
+
+  throw new Error("Server error, try again later");
 }
 
 export async function checkEmailAvailable(email) {
   const normalized = checkEmail(email);
-  if (await findByEmail(normalized)) {
-    throw new Error("This email is already registered");
+  try {
+    const existing = await findByEmail(normalized, { includePassword: false });
+    if (existing) {
+      throw new Error("This email is already registered");
+    }
+  } catch (err) {
+    if (err.message === "This email is already registered") {
+      throw err;
+    }
+    console.warn("[checkEmailAvailable] lookup error, allowing proceeding to verification:", err?.message);
   }
   return normalized;
 }
@@ -338,35 +373,85 @@ export function parseUserPhones(rawPhone) {
 
 export async function register({ firstName, lastName, email, password, phone }) {
   const normalized = checkEmail(email);
-  if (await findByEmail(normalized)) {
-    throw new Error("This email is already registered");
+  try {
+    const existing = await findByEmail(normalized, { includePassword: false });
+    if (existing) {
+      throw new Error("This email is already registered");
+    }
+  } catch (err) {
+    if (err.message === "This email is already registered") {
+      throw err;
+    }
   }
 
   const phoneArray = phone && phone.trim() ? [phone.trim()] : [];
-
   const bcrypt = await getBcrypt();
-  const response = await fetch(TABLE_URL, {
-    method: "POST",
-    headers: { ...headers, Prefer: "return=representation" },
-    body: JSON.stringify({
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: normalized,
-      password_hash: await bcrypt.hash(password, 10),
-      phone: phoneArray,
-      status: "user",
-      role: ["user"],
-    }),
-  });
-  if (
-    response.status === 409 ||
-    (await response.clone().text()).includes("23505")
-  ) {
-    throw new Error("This email is already registered");
-  }
-  if (!response.ok) throw new Error("Could not create the account");
+  const passwordHash = await bcrypt.hash(password, 10);
+  const payload = {
+    firstName: firstName.trim(),
+    lastName: lastName.trim(),
+    email: normalized,
+    password_hash: passwordHash,
+    phone: phoneArray,
+    status: "user",
+    role: ["user"],
+  };
 
-  setUserCookie((await response.json())[0]);
+  let createdUser = null;
+
+  // 1. Try direct Supabase
+  try {
+    const response = await fetch(TABLE_URL, {
+      method: "POST",
+      headers: { ...headers, Prefer: "return=representation" },
+      body: JSON.stringify(payload),
+    });
+
+    if (
+      response.status === 409 ||
+      (await response.clone().text().catch(() => "")).includes("23505")
+    ) {
+      throw new Error("This email is already registered");
+    }
+
+    if (response.ok) {
+      const rows = await response.json();
+      createdUser = rows?.[0] || null;
+    }
+  } catch (err) {
+    if (err.message === "This email is already registered") throw err;
+    console.warn("[auth.register] direct Supabase insert error, trying backend proxy:", err?.message);
+  }
+
+  // 2. Fallback to backend proxy (/api/auth/register)
+  if (!createdUser) {
+    try {
+      const proxyRes = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (proxyRes.status === 409) {
+        throw new Error("This email is already registered");
+      }
+
+      if (proxyRes.ok) {
+        const resData = await proxyRes.json();
+        createdUser = resData?.user || null;
+      }
+    } catch (err) {
+      if (err.message === "This email is already registered") throw err;
+      console.warn("[auth.register] backend proxy register failed:", err?.message);
+    }
+  }
+
+  if (!createdUser) {
+    throw new Error("Could not create the account");
+  }
+
+  setUserCookie(createdUser);
+  return createdUser;
 }
 
 export async function login(email, password) {

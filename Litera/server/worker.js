@@ -354,8 +354,8 @@ export default {
       try {
         const orClause = buildWorkerSearchOr(q);
         const targetUrl = q.trim() && orClause
-          ? `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&or=${encodeURIComponent(orClause)}&order=id.asc&limit=150`
-          : `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&order=id.asc&limit=100`;
+          ? `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&image=not.is.null&or=${encodeURIComponent(orClause)}&order=id.asc&limit=150`
+          : `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&image=not.is.null&order=id.asc&limit=100`;
         const sRes = await fetch(targetUrl, {
           headers: {
             apikey: "sb_publishable_b9UI3PiZhUvPTcroS9oMOg_NyHBwtxw",
@@ -383,6 +383,98 @@ export default {
         });
         const rows = sRes.ok ? await sRes.json() : [];
         return jsonResponse({ product: rows[0] || null });
+      } catch (err) {
+        return jsonResponse({ error: err.message }, 500);
+      }
+    }
+
+    if (method === "GET" && pathname === "/api/auth/find-by-email") {
+      const email = (urlObj.searchParams.get("email") || "").trim().toLowerCase();
+      const includePassword = urlObj.searchParams.get("includePassword") === "1";
+      if (!email) {
+        return jsonResponse({ error: "Missing email" }, 400);
+      }
+      try {
+        const secretKey =
+          env.SUPABASE_SECRET_KEY ||
+          env.VITE_SUPABASE_ANON_KEY;
+        const supabaseUrl =
+          env.SUPABASE_URL ||
+          env.VITE_SUPABASE_URL ||
+          "https://qgxiisgzwcsevzyaoxvl.supabase.co";
+        const selectFields = includePassword
+          ? "id,firstName,lastName,email,password_hash,status,role"
+          : "id,firstName,lastName,email,status,role";
+        const targetUrl = `${supabaseUrl}/rest/v1/user?select=${selectFields}&email=ilike.${encodeURIComponent(email)}&limit=1`;
+        const sRes = await fetch(targetUrl, {
+          headers: {
+            apikey: secretKey,
+            Authorization: `Bearer ${secretKey}`,
+          },
+        });
+        const rows = sRes.ok ? await sRes.json() : [];
+        return jsonResponse({ user: rows[0] || null });
+      } catch (err) {
+        return jsonResponse({ error: err.message }, 500);
+      }
+    }
+
+    if (method === "POST" && pathname === "/api/auth/register") {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          firstName,
+          lastName,
+          email,
+          password_hash,
+          phone,
+          status = "user",
+          role = ["user"],
+        } = body || {};
+        if (!email || !password_hash) {
+          return jsonResponse({ error: "Missing required fields" }, 400);
+        }
+        const secretKey =
+          env.SUPABASE_SECRET_KEY ||
+          env.VITE_SUPABASE_ANON_KEY;
+        const supabaseUrl =
+          env.SUPABASE_URL ||
+          env.VITE_SUPABASE_URL ||
+          "https://qgxiisgzwcsevzyaoxvl.supabase.co";
+        const targetUrl = `${supabaseUrl}/rest/v1/user`;
+        const sRes = await fetch(targetUrl, {
+          method: "POST",
+          headers: {
+            apikey: secretKey,
+            Authorization: `Bearer ${secretKey}`,
+            "Content-Type": "application/json",
+            Prefer: "return=representation",
+          },
+          body: JSON.stringify({
+            firstName: (firstName || "").trim(),
+            lastName: (lastName || "").trim(),
+            email: email.trim().toLowerCase(),
+            password_hash,
+            phone: Array.isArray(phone) ? phone : phone ? [phone] : [],
+            status,
+            role,
+          }),
+        });
+        if (
+          sRes.status === 409 ||
+          (await sRes.clone().text().catch(() => "")).includes("23505")
+        ) {
+          return jsonResponse({ error: "This email is already registered" }, 409);
+        }
+        if (!sRes.ok) {
+          const errText = await sRes.text().catch(() => "");
+          return jsonResponse(
+            { error: "Could not create account", details: errText },
+            500,
+          );
+        }
+        const rows = await sRes.json();
+        return jsonResponse({ success: true, user: rows[0] || null });
       } catch (err) {
         return jsonResponse({ error: err.message }, 500);
       }

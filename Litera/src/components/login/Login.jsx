@@ -121,6 +121,7 @@ export default function Login({ onSignUp, onClose }) {
   };
 
   const translateResetError = (rawMessage) => {
+    if (!rawMessage) return isRu ? "Произошла ошибка, попробуйте позже" : "An error occurred, try again later";
     if (rawMessage === "Enter a valid email") {
       return isRu ? "Введите корректный email" : "Enter a valid email";
     }
@@ -133,6 +134,11 @@ export default function Login({ onSignUp, onClose }) {
       return isRu
         ? "Пароль должен содержать минимум 8 символов"
         : "Password must be at least 8 characters";
+    }
+    if (rawMessage.includes("Server error") || rawMessage === "SERVER_ERROR") {
+      return isRu
+        ? "Ошибка сервера, попробуйте позже"
+        : "Server error, please try again later";
     }
     return rawMessage;
   };
@@ -172,6 +178,14 @@ export default function Login({ onSignUp, onClose }) {
         displayMsg = isRu
           ? "Неверный логин или пароль"
           : "Invalid email/login or password";
+      } else if (err.message?.includes("Server error") || err.message === "SERVER_ERROR") {
+        displayMsg = isRu
+          ? "Ошибка сервера, попробуйте позже"
+          : "Server error, please try again later";
+      } else if (err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError")) {
+        displayMsg = isRu
+          ? "Ошибка соединения. Проверьте интернет."
+          : "Network connection error.";
       }
       setError(displayMsg);
       showValidationTooltip(emailRef.current, displayMsg);

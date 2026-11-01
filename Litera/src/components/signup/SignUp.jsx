@@ -125,6 +125,7 @@ export default function SignUp({ onLogin, onClose }) {
   });
 
   const translateAuthError = (rawMessage) => {
+    if (!rawMessage) return isRu ? "Произошла ошибка, попробуйте позже" : "An error occurred, try again later";
     if (rawMessage === "Enter a valid email") {
       return isRu ? "Введите корректный email" : "Enter a valid email";
     }
@@ -132,6 +133,25 @@ export default function SignUp({ onLogin, onClose }) {
       return isRu
         ? "Этот email уже зарегистрирован"
         : "This email is already registered";
+    }
+    if (
+      rawMessage === "Server error, try again later" ||
+      rawMessage === "SERVER_ERROR" ||
+      rawMessage.includes("Server error")
+    ) {
+      return isRu
+        ? "Ошибка сервера, попробуйте еще раз позже"
+        : "Server error, please try again later";
+    }
+    if (rawMessage === "Could not create the account") {
+      return isRu
+        ? "Не удалось создать аккаунт, попробуйте позже"
+        : "Could not create the account";
+    }
+    if (rawMessage.includes("Failed to fetch") || rawMessage.includes("NetworkError")) {
+      return isRu
+        ? "Ошибка соединения. Проверьте подключение к интернету."
+        : "Network connection error. Please check your internet connection.";
     }
     return rawMessage;
   };

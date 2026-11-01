@@ -33,7 +33,7 @@ export default async function getDiscountSnapshot() {
   inflight = (async () => {
     try {
       const response = await fetch(
-        `${TABLE_URL}?select=id,name,price,publisher,image,info&limit=30`,
+        `${TABLE_URL}?select=id,name,price,publisher,image,info&image=not.is.null&limit=30`,
         {
           headers: {
             apikey: SUPABASE_KEY,

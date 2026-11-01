@@ -33,7 +33,7 @@ export default async function getNewBooks() {
   inflight = (async () => {
     try {
       const response = await fetch(
-        `${TABLE_URL}?select=id,name,price,publisher,image,info,created_at&order=id.desc&limit=30`,
+        `${TABLE_URL}?select=id,name,price,publisher,image,info,created_at&image=not.is.null&order=id.desc&limit=30`,
         {
           headers: {
             apikey: SUPABASE_KEY,

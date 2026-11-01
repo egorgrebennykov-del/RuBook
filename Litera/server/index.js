@@ -303,8 +303,8 @@ const server = createServer(async (req, res) => {
     try {
       const clean = encodeURIComponent(`*${q.trim()}*`);
       const targetUrl = q.trim()
-        ? `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&or=(name.ilike.${clean},publisher.ilike.${clean})&order=id.asc&limit=100`
-        : `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&order=id.asc&limit=100`;
+        ? `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&image=not.is.null&or=(name.ilike.${clean},publisher.ilike.${clean})&order=id.asc&limit=100`
+        : `https://qgxiisgzwcsevzyaoxvl.supabase.co/rest/v1/books?select=id,name,price,publisher,image,info&image=not.is.null&order=id.asc&limit=100`;
       const sRes = await fetch(targetUrl, {
         headers: {
           apikey: "sb_publishable_b9UI3PiZhUvPTcroS9oMOg_NyHBwtxw",
@@ -335,6 +335,100 @@ const server = createServer(async (req, res) => {
       respond(res, 200, { product: rows[0] || null });
     } catch (error) {
       respond(res, 500, { error: error.message });
+    }
+    return;
+  }
+  if (req.method === "GET" && req.url?.startsWith("/api/auth/find-by-email?")) {
+    const sp = new URL(req.url, "http://localhost").searchParams;
+    const email = (sp.get("email") || "").trim().toLowerCase();
+    const includePassword = sp.get("includePassword") === "1";
+    if (!email) {
+      respond(res, 400, { error: "Missing email" });
+      return;
+    }
+    try {
+      const secretKey =
+        process.env.SUPABASE_SECRET_KEY ||
+        process.env.VITE_SUPABASE_ANON_KEY;
+      const supabaseUrl =
+        process.env.SUPABASE_URL ||
+        process.env.VITE_SUPABASE_URL ||
+        "https://qgxiisgzwcsevzyaoxvl.supabase.co";
+      const selectFields = includePassword
+        ? "id,firstName,lastName,email,password_hash,status,role"
+        : "id,firstName,lastName,email,status,role";
+      const targetUrl = `${supabaseUrl}/rest/v1/user?select=${selectFields}&email=ilike.${encodeURIComponent(email)}&limit=1`;
+      const sRes = await fetch(targetUrl, {
+        headers: {
+          apikey: secretKey,
+          Authorization: `Bearer ${secretKey}`,
+        },
+      });
+      const rows = sRes.ok ? await sRes.json() : [];
+      respond(res, 200, { user: rows[0] || null });
+    } catch (err) {
+      respond(res, 500, { error: err.message });
+    }
+    return;
+  }
+  if (req.method === "POST" && req.url === "/api/auth/register") {
+    try {
+      const body = await readJson(req);
+      const {
+        firstName,
+        lastName,
+        email,
+        password_hash,
+        phone,
+        status = "user",
+        role = ["user"],
+      } = body || {};
+      if (!email || !password_hash) {
+        respond(res, 400, { error: "Missing required fields" });
+        return;
+      }
+      const secretKey =
+        process.env.SUPABASE_SECRET_KEY ||
+        process.env.VITE_SUPABASE_ANON_KEY;
+      const supabaseUrl =
+        process.env.SUPABASE_URL ||
+        process.env.VITE_SUPABASE_URL ||
+        "https://qgxiisgzwcsevzyaoxvl.supabase.co";
+      const targetUrl = `${supabaseUrl}/rest/v1/user`;
+      const sRes = await fetch(targetUrl, {
+        method: "POST",
+        headers: {
+          apikey: secretKey,
+          Authorization: `Bearer ${secretKey}`,
+          "Content-Type": "application/json",
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify({
+          firstName: (firstName || "").trim(),
+          lastName: (lastName || "").trim(),
+          email: email.trim().toLowerCase(),
+          password_hash,
+          phone: Array.isArray(phone) ? phone : phone ? [phone] : [],
+          status,
+          role,
+        }),
+      });
+      if (
+        sRes.status === 409 ||
+        (await sRes.clone().text().catch(() => "")).includes("23505")
+      ) {
+        respond(res, 409, { error: "This email is already registered" });
+        return;
+      }
+      if (!sRes.ok) {
+        const errText = await sRes.text().catch(() => "");
+        respond(res, 500, { error: "Could not create account", details: errText });
+        return;
+      }
+      const rows = await sRes.json();
+      respond(res, 200, { success: true, user: rows[0] || null });
+    } catch (err) {
+      respond(res, 500, { error: err.message });
     }
     return;
   }

@@ -99,7 +99,19 @@ export function hasValidCover(url) {
   if (!url || typeof url !== 'string') return false;
   const str = url.trim();
   if (!str.startsWith('http://') && !str.startsWith('https://')) return false;
-  return str.length >= 10;
+  if (str.length < 10) return false;
+  const lower = str.toLowerCase();
+  if (
+    lower.includes('.html') ||
+    lower.includes('.htm') ||
+    lower.includes('.php') ||
+    lower.includes('route=product') ||
+    lower.includes('product_id') ||
+    lower.includes('go.ast.ru/')
+  ) {
+    return false;
+  }
+  return true;
 }
 
 // Universal parser for any book pricelist sheet

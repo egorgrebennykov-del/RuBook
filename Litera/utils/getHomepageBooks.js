@@ -48,9 +48,9 @@ export default async function getHomepageBooks() {
       let rows = response.ok ? await response.json() : [];
 
       if (!rows || rows.length < 5) {
-        // Fallback: any books
+        // Fallback: books with images
         const fallbackRes = await fetch(
-          `${TABLE_URL}?select=id,name,price,publisher,image,info&limit=10`,
+          `${TABLE_URL}?select=id,name,price,publisher,image,info&image=not.is.null&limit=15`,
           {
             headers: {
               apikey: SUPABASE_KEY,

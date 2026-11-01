@@ -33,7 +33,7 @@ export default async function getBookPicks() {
   inflight = (async () => {
     try {
       const response = await fetch(
-        `${TABLE_URL}?select=id,name,price,publisher,image,info&order=id.asc&limit=30`,
+        `${TABLE_URL}?select=id,name,price,publisher,image,info&image=not.is.null&order=id.asc&limit=30`,
         {
           headers: {
             apikey: SUPABASE_KEY,
