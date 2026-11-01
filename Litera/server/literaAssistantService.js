@@ -1,4 +1,24 @@
+if (typeof process !== "undefined" && process?.env) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+}
 import getExchangeRate, { DEFAULT_RATE } from "../utils/getExchangeRate.js";
+import searchBooks from "../utils/searchBooks.js";
+
+export const STOP_WORDS = new Set([
+  "посоветуй", "посоветуйте", "порекомендуй", "порекомендуйте", "подскажи", "подскажите",
+  "найди", "найдите", "пожалуйста", "какие", "нибудь", "какие-нибудь", "что", "что-нибудь",
+  "почитать", "хочу", "хочется", "есть", "ли", "у", "вас", "бывают", "продаются", "продаете",
+  "книги", "книгу", "книга", "книг", "покажи", "покажите", "дай", "мне", "купить",
+  "подберите", "выберите", "ищу", "произведения", "романы", "автора", "автор",
+  "издательства", "издательство", "что-то", "для"
+]);
+
+export function extractCleanSearchTerms(query) {
+  if (!query || typeof query !== "string") return "";
+  const words = query.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  const kept = words.filter((w) => !STOP_WORDS.has(w));
+  return kept.join(" ");
+}
 
 const SUPABASE_URL =
   globalThis.process?.env?.SUPABASE_URL ||
@@ -432,6 +452,60 @@ export async function searchSuppliersByTitleOnly(title) {
     console.warn("searchSuppliersByTitleOnly error:", err.message);
     return [];
   }
+}
+
+/**
+ * Search the store's Supabase catalogue directly using clean query and stems.
+ */
+export async function searchCatalogDirect(query, options = {}) {
+  const allowForeign = Boolean(options.allowForeign);
+  const cleanTerms = extractCleanSearchTerms(query);
+  const termsToSearch = [cleanTerms, query].filter(
+    (t, i, arr) => t && t.length >= 2 && arr.indexOf(t) === i,
+  );
+
+  let pool = [];
+  for (const term of termsToSearch) {
+    const res = await searchBooks(term);
+    if (res.length > 0) {
+      pool.push(...res);
+      if (pool.length >= 40) break;
+    }
+  }
+
+  // Deduplicate and filter
+  const valid = [];
+  const seenIds = new Set();
+  for (const b of pool) {
+    if (!b || !b.id || seenIds.has(String(b.id))) continue;
+    if (!b.image) continue;
+    if (HARAM_BOOK_PATTERN.test(b.title)) continue;
+    if (
+      !allowForeign &&
+      (FOREIGN_LANGUAGE_PATTERN.test(b.title) ||
+        (/[a-z]/i.test(b.title) && !/[а-яё]/i.test(b.title)))
+    ) {
+      continue;
+    }
+    if (valid.some((ex) => areTitlesSameWork(ex.title, b.title))) continue;
+
+    seenIds.add(String(b.id));
+    valid.push({
+      id: String(b.id),
+      dbId: b.id,
+      title: b.title,
+      author: b.author || "Неизвестный автор",
+      price: Number(b.price) || 5.99,
+      currency: "EUR",
+      image: b.image,
+      url: `/book/${b.id}`,
+      publisher: b.publisher || b.store || "Litera",
+      store: b.publisher || b.store || "Litera",
+      relevance: b.relevance || `Книга из каталога Litera`,
+    });
+  }
+
+  return valid;
 }
 
 export const FOREIGN_LANGUAGE_PATTERN =
@@ -1355,198 +1429,104 @@ export async function discoverAndMatchBooks(userQuery, exchangeRate, history = [
     }));
   }
 
-  // Check if user is asking for generic categories / items without specific book titles (e.g. "прописи", "учебники", "рабочие тетради")
-  const categoryResults = await searchGenericCategoryIfNeeded(
-    userQuery,
-    activeRate,
-    isForeignLanguageRequested,
-    isDescendingPriceOrder,
-    history,
-    previouslyRecommended,
-    previousUrls,
-  );
-  if (categoryResults !== null) {
-    return categoryResults;
-  }
+  // 1. Direct search in store catalogue (Supabase) using clean search terms & stems
+  const directCatalogBooks = await searchCatalogDirect(userQuery, {
+    allowForeign: isForeignLanguageRequested,
+  });
 
-  const rawCandidates = await discoverBooksByMeaning(
-    userQuery,
-    history,
-    previouslyRecommended,
-  );
-  if (!rawCandidates || rawCandidates.length === 0) return [];
-
-  let candidates = rawCandidates;
-
-  // If user rejects previous recommendations ("не хочу", "дай другие", "не то"),
-  // strictly exclude all previously recommended titles so the user gets fresh different books!
+  let directFiltered = directCatalogBooks.map((b) => ({ ...b, isDirectMatch: true }));
   if (isRejectingPrevious && previouslyRecommended.length > 0) {
     const prevTitlesLower = new Set(
       previouslyRecommended.map((b) => (b.title || "").toLowerCase().trim()),
     );
-    candidates = candidates.filter((c) => {
-      const cTitle = (c.title || "").toLowerCase().trim();
+    directFiltered = directFiltered.filter((b) => {
+      const bTitle = (b.title || "").toLowerCase().trim();
       return (
-        !prevTitlesLower.has(cTitle) &&
-        ![...prevTitlesLower].some(
-          (pt) => cTitle.includes(pt) || pt.includes(cTitle),
-        )
+        !prevTitlesLower.has(bTitle) &&
+        ![...prevTitlesLower].some((pt) => bTitle.includes(pt) || pt.includes(bTitle))
       );
     });
   }
 
-  // If other edition requested specifically (and not rejecting), guarantee previously recommended titles are included
-  if (isOtherEditionRequest && previouslyRecommended.length > 0 && !isRejectingPrevious) {
-    for (const pb of previouslyRecommended) {
-      if (
-        !candidates.some(
-          (c) => c.title.toLowerCase() === pb.title.toLowerCase(),
-        )
-      ) {
-        candidates.unshift({
-          title: pb.title,
-          author: pb.author || "",
-          alternativeTitle: "",
-          relevance: "Альтернативное издание произведения",
+  let pool = [...directFiltered];
+
+  // 2. If direct catalog results are fewer than 4 or query needs category/thematic discovery:
+  if (pool.length < 4) {
+    const categoryResults = await searchGenericCategoryIfNeeded(
+      userQuery,
+      activeRate,
+      isForeignLanguageRequested,
+      isDescendingPriceOrder,
+      history,
+      previouslyRecommended,
+      previousUrls,
+    );
+    if (categoryResults !== null && categoryResults.length > 0) {
+      pool.push(...categoryResults);
+    }
+
+    if (pool.length < 4) {
+      const rawCandidates = await discoverBooksByMeaning(
+        userQuery,
+        history,
+        previouslyRecommended,
+      );
+      if (rawCandidates && rawCandidates.length > 0) {
+        let candidates = rawCandidates;
+        if (isRejectingPrevious && previouslyRecommended.length > 0) {
+          const prevTitlesLower = new Set(
+            previouslyRecommended.map((b) => (b.title || "").toLowerCase().trim()),
+          );
+          candidates = candidates.filter((c) => {
+            const cTitle = (c.title || "").toLowerCase().trim();
+            return (
+              !prevTitlesLower.has(cTitle) &&
+              ![...prevTitlesLower].some((pt) => cTitle.includes(pt) || pt.includes(cTitle))
+            );
+          });
+        }
+
+        const candidatesToSearch = isGift ? candidates.slice(0, 8) : candidates.slice(0, 5);
+        for (const candidate of candidatesToSearch) {
+          const found = await searchCatalogDirect(candidate.title, {
+            allowForeign: isForeignLanguageRequested,
+          });
+          if (found.length > 0) {
+            pool.push({
+              ...found[0],
+              candidateTitle: candidate.title,
+              candidateAuthor: candidate.author,
+              relevance: candidate.relevance || found[0].relevance,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Fallback if pool is still empty (e.g. broad "что почитать", "посоветуй книги")
+  if (pool.length === 0) {
+    const defaultCatalog = await searchBooks("");
+    for (const b of defaultCatalog) {
+      if (b && b.image && !HARAM_BOOK_PATTERN.test(b.title)) {
+        pool.push({
+          id: String(b.id),
+          dbId: b.id,
+          title: b.title,
+          author: b.author || "Неизвестный автор",
+          price: Number(b.price) || 5.99,
+          currency: "EUR",
+          image: b.image,
+          url: `/book/${b.id}`,
+          publisher: b.publisher || "Litera",
+          store: b.publisher || "Litera",
+          relevance: "Популярное издание из каталога",
         });
       }
     }
   }
 
-  // Search suppliers for top candidates strictly by title only (up to 8 for gifts to guarantee gift editions, 5 for normal)
-  const candidatesToSearch = isGift ? candidates.slice(0, 8) : candidates.slice(0, 5);
-  const searchPromises = candidatesToSearch.map(async (candidate) => {
-    let storeProducts = await searchSuppliersByTitleOnly(
-      candidate.title,
-      activeRate,
-    );
-    if (
-      storeProducts.length === 0 &&
-      candidate.alternativeTitle &&
-      candidate.alternativeTitle !== candidate.title
-    ) {
-      storeProducts = await searchSuppliersByTitleOnly(
-        candidate.alternativeTitle,
-        activeRate,
-      );
-    }
-
-    const validMatches = storeProducts.filter((p) =>
-      validateProductMatch(p, candidate, isForeignLanguageRequested),
-    );
-
-    if (validMatches.length === 0) return [];
-
-    if (isGift || isExpensive) {
-      // Find expensive/deluxe options of this book
-      // Sort editions descending by price: from most expensive to cheapest
-      validMatches.sort((a, b) => b.price - a.price);
-
-      let chosenPool;
-      if (isGift) {
-        // A true gift edition must be impressive: either explicit deluxe/gift markers, or premium price >= 20.0 EUR
-        // Reject plain mass-market paperbacks (like "Сто лет одиночества 15.30 €" or plain "Идиот 19.92 €")
-        const giftEditions = validMatches.filter((p) => {
-          const isExplicitGift = /(подарочн|иллюстр|шедевры\s*иллюстрац|коллекцион|кожан|шелковый|в\s*коробе|футляр|комплект|собрание\s*сочинений|тома?\s*\d|в\s*\d+\s*т|золотая\s*коллекция|большая\s*книга|библиотека\s*великих|суперобложк|твердый\s*переплет)/i.test(p.title);
-          if (isExplicitGift) return p.price >= 8.0;
-          return p.price >= 20.0;
-        });
-
-        if (giftEditions.length === 0) {
-          // If this book has NO gift/deluxe editions available in store catalogues (only cheap softcover/paperbacks),
-          // reject this candidate so another book with genuine gift editions is selected!
-          return [];
-        }
-        chosenPool = giftEditions;
-      } else {
-        const premiumEditions = validMatches.filter((p) => p.price >= 7.5);
-        chosenPool = premiumEditions.length > 0 ? premiumEditions : validMatches;
-      }
-
-      // STRICTLY offer only 1 single best edition per candidate book so works NEVER repeat!
-      return [
-        {
-          ...chosenPool[0],
-          candidateTitle: candidate.title,
-          candidateAuthor: candidate.author,
-          relevance: candidate.relevance,
-        },
-      ];
-    }
-
-    if (isOtherEditionRequest) {
-      // Find previous edition price if this candidate was previously recommended
-      const prevBook = previouslyRecommended.find(
-        (b) =>
-          b.title.toLowerCase().includes(candidate.title.toLowerCase()) ||
-          candidate.title.toLowerCase().includes(b.title.toLowerCase()),
-      );
-      const prevPrice = prevBook ? Number(prevBook.price) : 0;
-
-      // Filter out exact URLs that were already shown
-      const unshown = validMatches.filter((p) => !previousUrls.has(p.url));
-      const pool = unshown.length > 0 ? unshown : validMatches;
-
-      // The user requested: "книги с такими же названиями но подороже"
-      // Prefer higher-tier / hardcover / better quality editions (>= 7.5 € or noticeably higher than previous)
-      const isExplicitlyMoreExpensive =
-        /(подороже|дорог(ое|ую|ой|ие)|подарочн|коллекционн|в твердом переплете|кожан|люкс|друг(их|ого|ие)\s*(издани|издательств))/i.test(
-          userQuery || "",
-        );
-
-      let moreExpensive;
-      if (isExplicitlyMoreExpensive) {
-        const threshold = Math.max(7.5, prevPrice > 0 ? prevPrice * 1.6 : 7.5);
-        const premiumEditions = pool.filter((p) => p.price >= threshold);
-        if (premiumEditions.length >= 2) {
-          moreExpensive = premiumEditions;
-        } else {
-          moreExpensive = pool.filter(
-            (p) => p.price > (prevPrice > 0 ? prevPrice + 1.0 : 5.0),
-          );
-        }
-      } else {
-        moreExpensive = pool.filter(
-          (p) => p.price > (prevPrice > 0 ? prevPrice + 0.8 : 5.0),
-        );
-      }
-
-      const editionPool = moreExpensive.length >= 2 ? moreExpensive : pool;
-
-      // Sort by price ascending (from the higher-priced tier upwards, e.g. 9.85 €, 10.40 €, 11.39 €)
-      if (isGiftOrLuxuryRequest) {
-        editionPool.sort((a, b) => b.price - a.price);
-      } else {
-        editionPool.sort((a, b) => a.price - b.price);
-      }
-
-      // Offer up to 3 distinct higher-priced editions of this book
-      const takeCount = Math.min(3, editionPool.length);
-      return editionPool.slice(0, takeCount).map((match) => ({
-        ...match,
-        candidateTitle: candidate.title,
-        candidateAuthor: candidate.author,
-        relevance: candidate.relevance,
-      }));
-    }
-
-    // Default search (not asking for other edition / more expensive)
-    validMatches.sort((a, b) => a.price - b.price);
-
-    // If only 1-2 candidates were found (specific single book request),
-    // return up to 3 distinct affordable editions so the customer always has at least 3 choices!
-    const takeCount =
-      candidates.length <= 2 ? Math.min(3, validMatches.length) : 1;
-    return validMatches.slice(0, takeCount).map((match) => ({
-      ...match,
-      candidateTitle: candidate.title,
-      candidateAuthor: candidate.author,
-      relevance: candidate.relevance,
-    }));
-  });
-
-  const resolved = await Promise.all(searchPromises);
-  let rawProducts = resolved.flat().filter(Boolean);
+  let rawProducts = pool;
 
   // Fast haram and foreign language rejection without extra network or LLM calls
   rawProducts = rawProducts.filter((p) => !HARAM_BOOK_PATTERN.test(p.title));
@@ -1605,13 +1585,21 @@ export async function discoverAndMatchBooks(userQuery, exchangeRate, history = [
     }
   }
 
-  // PRICE FILTER SORTING:
+  // PRICE & RELEVANCE FILTER SORTING:
   // "Когда пользователь просит что-нибудь для подарка, то фильтр цены должен идти наоборот от самого дорогого до самого дешевого"
   // "Фильтр цены так же должен работать от большего к меньшему если пользователь специально просит что нибудь подороже"
   if (isDescendingPriceOrder) {
-    halalProducts.sort((a, b) => b.price - a.price);
+    halalProducts.sort((a, b) => {
+      if (Boolean(a.isDirectMatch) !== Boolean(b.isDirectMatch)) {
+        return a.isDirectMatch ? -1 : 1;
+      }
+      return b.price - a.price;
+    });
   } else if (!isOtherEditionRequest) {
     halalProducts.sort((a, b) => {
+      if (Boolean(a.isDirectMatch) !== Boolean(b.isDirectMatch)) {
+        return a.isDirectMatch ? -1 : 1;
+      }
       const aIsHigh = a.price > 45;
       const bIsHigh = b.price > 45;
       if (aIsHigh !== bIsHigh) return aIsHigh ? 1 : -1;
@@ -1621,8 +1609,9 @@ export async function discoverAndMatchBooks(userQuery, exchangeRate, history = [
 
   // Return up to 8 top candidate books with indexed IDs
   return halalProducts.slice(0, 8).map((b, idx) => ({
-    id: `catalog-book-${idx}`,
     ...b,
+    id: String(b.id || b.dbId || `catalog-book-${idx}`),
+    dbId: b.dbId || b.id,
   }));
 }
 
@@ -1742,7 +1731,12 @@ async function analyzeSearchIntent(messages) {
       lower,
     );
 
-  if (hasExplicitBookRequest || isContinuationQuery) {
+  const hasAuthorOrPublisherOrGenre =
+    /(достоевск|толст|пушкин|чехов|булгаков|оруэлл|кинг|роулинг|ремарк|тургенев|гоголь|лермонтов|есенин|маяковск|набоков|акунин|пелевин|аст\b|альпин|эксмо|азбук|баббл|bubble|росмэн|каро|белый\s*город|лайвбук|попурри|детектив|фантастик|фэнтези|психолог|бизнес|философи|истори|детск|манга|мангу|комикс|триллер|приключен|поэзи|стих|роман|каталог)/i.test(
+      lower,
+    );
+
+  if (hasExplicitBookRequest || isContinuationQuery || hasAuthorOrPublisherOrGenre) {
     return { needSearch: true };
   }
 
@@ -2143,11 +2137,29 @@ CRITICAL SPOILER POLICY & INSTRUCTIONS:
     });
 
     // 5. Verify bookIds against actual catalogue results (Strict Data Integrity)
-    const validBookIds = new Set(catalogueResults.map((b) => b.id));
-    const verifiedBooks = (aiResponse.bookIds || [])
-      .filter((id) => validBookIds.has(id))
-      .map((id) => catalogueResults.find((b) => b.id === id))
+    const catalogueMap = new Map();
+    catalogueResults.forEach((b) => {
+      catalogueMap.set(String(b.id), b);
+      if (b.dbId) catalogueMap.set(String(b.dbId), b);
+    });
+
+    let verifiedBooks = (aiResponse.bookIds || [])
+      .map((id) => catalogueMap.get(String(id)))
       .filter(Boolean);
+
+    // Fallback if Gemini returned fewer than 3 books but catalogueResults has books
+    if (verifiedBooks.length < 3 && catalogueResults.length >= 3) {
+      const seenIds = new Set(verifiedBooks.map((b) => String(b.id)));
+      for (const b of catalogueResults) {
+        if (!seenIds.has(String(b.id))) {
+          verifiedBooks.push(b);
+          seenIds.add(String(b.id));
+          if (verifiedBooks.length >= 6) break;
+        }
+      }
+    } else if (verifiedBooks.length === 0 && catalogueResults.length > 0) {
+      verifiedBooks = catalogueResults.slice(0, 6);
+    }
 
     const rawMessage = aiResponse.message || "Здравствуйте! Рада вас видеть! 💜";
     let formattedMessage = capitalizeReligionNames(rawMessage);

@@ -6,6 +6,10 @@ import { createServer } from "node:http";
 import https from "node:https";
 import path from "node:path";
 import process from "node:process";
+
+if (typeof process !== "undefined" && process?.env) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+}
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import dotenv from "dotenv";

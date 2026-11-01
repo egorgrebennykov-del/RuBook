@@ -114,7 +114,15 @@ export function calculateRelevance(item, query) {
 
   // 1. Exact phrase matches
   if (title === q) return 100;
-  if (author === q || author.startsWith(q + " ") || author.includes(" " + q)) return 96;
+  const stem = getWordStem(q);
+  if (
+    author === q ||
+    author.startsWith(q + " ") ||
+    author.includes(" " + q) ||
+    (stem && stem.length >= 3 && author.includes(stem))
+  ) {
+    return 96;
+  }
   if (title.startsWith(q)) return 92;
   if (title.includes(q)) return 88;
   if (series === q || series.includes(q)) return 82;
