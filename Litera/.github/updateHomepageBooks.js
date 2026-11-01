@@ -18,34 +18,74 @@ const SUPABASE_SECRET_KEY =
   process.env.VITE_SUPABASE_ANON_KEY ||
   "sb_publishable_b9UI3PiZhUvPTcroS9oMOg_NyHBwtxw";
 
+const TARGET_PUBLISHERS = [
+  { key: "alpina", name: "Альпина", pattern: /альпин/i, filter: (query) => query.ilike("publisher", "%Альпин%") },
+  { key: "ast", name: "АСТ", pattern: /\bаст\b|издательство\s*аст/i, filter: (query) => query.ilike("publisher", "%АСТ%") },
+  { key: "eksmo", name: "Эксмо", pattern: /эксмо/i, filter: (query) => query.ilike("publisher", "%Эксмо%") },
+  { key: "mif", name: "МИФ", pattern: /\bмиф\b|манн[,\s]+иванов/i, filter: (query) => query.ilike("publisher", "%МИФ%") },
+  { key: "popuri", name: "Попурри", pattern: /попурри/i, filter: (query) => query.ilike("publisher", "%Попурри%") },
+];
+
+function hasValidImageUrl(sourceUrl) {
+  if (!sourceUrl || typeof sourceUrl !== "string") return false;
+  const str = sourceUrl.trim();
+  if (!str.startsWith("http://") && !str.startsWith("https://")) return false;
+  if (str.length < 10) return false;
+  const lower = str.toLowerCase();
+  if (
+    lower.includes(".html") ||
+    lower.includes(".htm") ||
+    lower.includes(".php") ||
+    lower.includes("route=product") ||
+    lower.includes("product_id=") ||
+    lower.includes("go.ast.ru/")
+  ) {
+    return false;
+  }
+  return true;
+}
+
 async function updateHomepageBooks() {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
     auth: { persistSession: false },
   });
 
-  const { data: books, error: fetchErr } = await supabase
-    .from("books")
-    .select("id, name, price, publisher, image, info")
-    .order("id", { ascending: false })
-    .limit(10);
+  const selected = [];
 
-  if (fetchErr) throw fetchErr;
-  if (!books || books.length === 0) {
-    console.warn("No books found in Supabase books table");
-    return;
+  for (const pub of TARGET_PUBLISHERS) {
+    let query = supabase
+      .from("books")
+      .select("id, name, price, publisher, image, info")
+      .not("image", "is", null);
+
+    query = pub.filter(query);
+
+    const { data: books, error: fetchErr } = await query.limit(20);
+    if (fetchErr) {
+      console.warn(`Error fetching for ${pub.name}:`, fetchErr.message);
+      continue;
+    }
+
+    const candidate = (books || []).find((b) => b.image && hasValidImageUrl(b.image));
+    if (candidate) {
+      selected.push({
+        id: candidate.id,
+        title: candidate.name,
+        url: `/book/${candidate.id}`,
+        image: candidate.image,
+        price: Number(candidate.price) || 5.99,
+        currency: "EUR",
+        publisher: pub.name,
+        author: candidate.info?.author || "",
+        store: pub.name,
+      });
+    }
   }
 
-  const selected = books.slice(0, 5).map((b) => ({
-    id: b.id,
-    title: b.name,
-    url: `/book/${b.id}`,
-    image: b.image || "",
-    price: Number(b.price) || 0,
-    currency: "EUR",
-    publisher: b.publisher || "",
-    author: b.info?.author || "",
-    store: "transbaltik.ru",
-  }));
+  if (selected.length === 0) {
+    console.warn("No books found for target publishers");
+    return;
+  }
 
   const { data: row, error: lookupError } = await supabase
     .from("books_on_home_page")
@@ -62,7 +102,7 @@ async function updateHomepageBooks() {
     : await supabase.from("books_on_home_page").insert(payload);
 
   if (result.error) throw result.error;
-  console.log(`Saved ${selected.length} homepage books to Supabase books_on_home_page table (EUR).`);
+  console.log(`Saved ${selected.length} homepage books (from ${selected.map(b => b.publisher).join(", ")}) to books_on_home_page.`);
 }
 
 updateHomepageBooks().catch((err) => {

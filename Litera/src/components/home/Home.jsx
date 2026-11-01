@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import CarouselControls from "../carouselcontrols/CarouselControls";
-import getHomepageBooks, { getCachedHomepageBooks } from "../../../utils/getHomepageBooks";
+import getHomepageBooks, {
+  getCachedHomepageBooks,
+  getPublisherCategory,
+} from "../../../utils/getHomepageBooks";
 import BookImage from "../common/BookImage";
 import decodeHtmlEntities from "../../../utils/decodeHtmlEntities";
 import { hasValidImageUrl } from "../../../utils/enhancedImageUrl";
@@ -13,20 +16,6 @@ import {
   getCachedActiveAnnouncements,
 } from "../../../utils/announcements";
 import "./Home.css";
-
-const FALLBACK_PUBLISHERS = [
-  "Эксмо",
-  "АСТ",
-  "Альпина Паблишер",
-  "АСТ",
-  "Эксмо",
-];
-
-function isStoreLabel(value) {
-  const clean = String(value ?? "").trim().toLowerCase();
-  if (!clean) return true;
-  return /\.(md|ro|ru|com)$/i.test(clean);
-}
 
 export default function Home() {
   const { language, t } = useLanguage();
@@ -96,6 +85,24 @@ export default function Home() {
     navigate(`/search?q=${encodeURIComponent(text)}`);
   };
 
+  const displayBooks = (() => {
+    const seen = new Set();
+    const result = [];
+    for (const b of books) {
+      if (!b?.image || !hasValidImageUrl(b.image) || failedUrls.has(b.url)) continue;
+      const cat = getPublisherCategory(b.publisher, b.title);
+      if (cat && !seen.has(cat)) {
+        seen.add(cat);
+        result.push({
+          ...b,
+          publisher: cat,
+        });
+      }
+      if (result.length >= 5) break;
+    }
+    return result;
+  })();
+
   return (
     <section className="home section" id="home">
       {/* Top Small Announcements Stack */}
@@ -135,12 +142,10 @@ export default function Home() {
           <div className="carousel">
             <div className="home__swiper swiper">
               <div className="swiper-wrapper">
-                {books
-                  .filter((b) => b.image && hasValidImageUrl(b.image) && !failedUrls.has(b.url))
-                  .map((book, index) => (
+                {displayBooks.map((book, index) => (
                   <article
                     className="home__article swiper-slide"
-                    key={book.url}
+                    key={book.url || book.id || index}
                   >
                     <Link
                       className="home__book-link"
@@ -150,9 +155,9 @@ export default function Home() {
                           title: book.title,
                           url: book.url,
                           image: book.image,
-                          store: book.store,
+                          store: book.store || book.publisher,
                           price: book.price,
-                          currency: book.currency,
+                          currency: book.currency || "EUR",
                         },
                         query: book.title,
                         fromHome: true,
@@ -189,8 +194,7 @@ export default function Home() {
                         {decodeHtmlEntities(book.title)}
                       </span>
                       <span className="home__book-publisher">
-                        {(!isStoreLabel(book.publisher) && book.publisher) ||
-                          FALLBACK_PUBLISHERS[index % FALLBACK_PUBLISHERS.length]}
+                        {book.publisher}
                       </span>
                     </Link>
                   </article>
@@ -198,7 +202,7 @@ export default function Home() {
               </div>
             </div>
             <CarouselControls className="carousel__controls--home" />
-            {books.length === 0 && (
+            {displayBooks.length === 0 && (
               <div className="home__books-status" role="status">
                 {!booksError && <div className="app-route-loader__spinner" style={{ margin: "0 auto 0.75rem" }} />}
                 <p>{booksError ? t("featured.error") : t("featured.loading")}</p>
