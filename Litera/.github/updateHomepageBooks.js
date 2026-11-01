@@ -20,15 +20,16 @@ const SUPABASE_SECRET_KEY =
 
 const TARGET_PUBLISHERS = [
   { key: "alpina", name: "Альпина", pattern: /альпин/i, filter: (query) => query.ilike("publisher", "%Альпин%") },
-  { key: "ast", name: "АСТ", pattern: /\bаст\b|издательство\s*аст/i, filter: (query) => query.ilike("publisher", "%АСТ%") },
+  { key: "ast", name: "АСТ", pattern: /(?:^|[^а-яёa-z0-9])аст(?:[^а-яёa-z0-9]|$)|издательство\s*аст/i, filter: (query) => query.ilike("publisher", "%АСТ%") },
   { key: "eksmo", name: "Эксмо", pattern: /эксмо/i, filter: (query) => query.ilike("publisher", "%Эксмо%") },
-  { key: "mif", name: "МИФ", pattern: /\bмиф\b|манн[,\s]+иванов/i, filter: (query) => query.ilike("publisher", "%МИФ%") },
+  { key: "mif", name: "МИФ", pattern: /(?:^|[^а-яёa-z0-9])миф(?:[^а-яёa-z0-9]|$)|манн[,\s]+иванов/i, filter: (query) => query.ilike("publisher", "%МИФ%") },
   { key: "popuri", name: "Попурри", pattern: /попурри/i, filter: (query) => query.ilike("publisher", "%Попурри%") },
 ];
 
 function hasValidImageUrl(sourceUrl) {
   if (!sourceUrl || typeof sourceUrl !== "string") return false;
   const str = sourceUrl.trim();
+  if (str.startsWith("/") || str.startsWith("data:image/")) return true;
   if (!str.startsWith("http://") && !str.startsWith("https://")) return false;
   if (str.length < 10) return false;
   const lower = str.toLowerCase();

@@ -20,10 +20,68 @@ const HOME_PAGE_TABLE_URL = `${SUPABASE_URL}/rest/v1/books_on_home_page`;
 
 export const ALLOWED_HOMEPAGE_PUBLISHERS = [
   { key: "alpina", name: "Альпина", pattern: /альпин/i, query: "publisher=ilike.*Альпин*" },
-  { key: "ast", name: "АСТ", pattern: /\bаст\b|издательство\s*аст/i, query: "publisher=ilike.*АСТ*" },
+  { key: "ast", name: "АСТ", pattern: /(?:^|[^а-яёa-z0-9])аст(?:[^а-яёa-z0-9]|$)|издательство\s*аст/i, query: "publisher=ilike.*АСТ*" },
   { key: "eksmo", name: "Эксмо", pattern: /эксмо/i, query: "publisher=ilike.*Эксмо*" },
-  { key: "mif", name: "МИФ", pattern: /\bмиф\b|манн[,\s]+иванов/i, query: "publisher=ilike.*МИФ*" },
+  { key: "mif", name: "МИФ", pattern: /(?:^|[^а-яёa-z0-9])миф(?:[^а-яёa-z0-9]|$)|манн[,\s]+иванов/i, query: "publisher=ilike.*МИФ*" },
   { key: "popuri", name: "Попурри", pattern: /попурри/i, query: "publisher=ilike.*Попурри*" },
+];
+
+export const DEFAULT_HOMEPAGE_BOOKS = [
+  {
+    id: 35544,
+    title: "Миссия выполнима. Технология счастливой жизни",
+    url: "/book/35544",
+    image: "/assets/img/home/home-3.webp",
+    price: 12.90,
+    currency: "EUR",
+    publisher: "Альпина",
+    author: "Радислав Гандапас",
+    store: "Альпина",
+  },
+  {
+    id: 8551,
+    title: "Идиот",
+    url: "/book/8551",
+    image: "/assets/img/home/home-2.webp",
+    price: 5.90,
+    currency: "EUR",
+    publisher: "АСТ",
+    author: "Федор Достоевский",
+    store: "АСТ",
+  },
+  {
+    id: 4698,
+    title: "Загадочное происшествие в Стайлзе",
+    url: "/book/4698",
+    image: "/assets/img/home/home-1.webp",
+    price: 6.90,
+    currency: "EUR",
+    publisher: "Эксмо",
+    author: "Агата Кристи",
+    store: "Эксмо",
+  },
+  {
+    id: 37993,
+    title: "12 недель в году. Как за 12 недель сделать больше, чем другие успевают за 12 месяцев",
+    url: "/book/37993",
+    image: "/assets/img/home/home-4.webp",
+    price: 11.79,
+    currency: "EUR",
+    publisher: "МИФ",
+    author: "Брайан Моран, Майкл Леннингтон",
+    store: "МИФ",
+  },
+  {
+    id: 38666,
+    title: "Богатый папа, бедный папа для подростков",
+    url: "/book/38666",
+    image: "/assets/img/home/home-5.webp",
+    price: 6.19,
+    currency: "EUR",
+    publisher: "Попурри",
+    author: "Роберт Кийосаки",
+    store: "Попурри",
+  },
 ];
 
 export function getPublisherCategory(publisherName, bookTitle = "") {
@@ -43,7 +101,7 @@ let cacheExpiry = 0;
 let inflight = null;
 
 export function getCachedHomepageBooks() {
-  return cachedBooks;
+  return cachedBooks || DEFAULT_HOMEPAGE_BOOKS;
 }
 
 export default async function getHomepageBooks() {
@@ -141,7 +199,7 @@ export default async function getHomepageBooks() {
       return finalBooks;
     }
 
-    return cachedBooks || [];
+    return cachedBooks || DEFAULT_HOMEPAGE_BOOKS;
   })().finally(() => {
     inflight = null;
   });

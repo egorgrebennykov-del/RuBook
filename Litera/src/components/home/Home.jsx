@@ -4,6 +4,7 @@ import CarouselControls from "../carouselcontrols/CarouselControls";
 import getHomepageBooks, {
   getCachedHomepageBooks,
   getPublisherCategory,
+  DEFAULT_HOMEPAGE_BOOKS,
 } from "../../../utils/getHomepageBooks";
 import BookImage from "../common/BookImage";
 import decodeHtmlEntities from "../../../utils/decodeHtmlEntities";
@@ -88,7 +89,9 @@ export default function Home() {
   const displayBooks = (() => {
     const seen = new Set();
     const result = [];
-    for (const b of books) {
+    const sourceList = Array.isArray(books) && books.length > 0 ? books : DEFAULT_HOMEPAGE_BOOKS;
+
+    for (const b of sourceList) {
       if (!b?.image || !hasValidImageUrl(b.image) || failedUrls.has(b.url)) continue;
       const cat = getPublisherCategory(b.publisher, b.title);
       if (cat && !seen.has(cat)) {
@@ -100,6 +103,19 @@ export default function Home() {
       }
       if (result.length >= 5) break;
     }
+
+    // Guarantee that all 5 target publishers are always represented
+    if (result.length < 5) {
+      for (const fallback of DEFAULT_HOMEPAGE_BOOKS) {
+        const cat = getPublisherCategory(fallback.publisher, fallback.title);
+        if (cat && !seen.has(cat)) {
+          seen.add(cat);
+          result.push(fallback);
+        }
+        if (result.length >= 5) break;
+      }
+    }
+
     return result;
   })();
 
