@@ -151,6 +151,7 @@ export default function BookDetails() {
   const fromHome = state?.fromHome || params.get("source") === "home";
   const fromBookPicks = params.get("source") === "book-picks";
   const fromNew = state?.fromNew || params.get("source") === "new";
+  const fromSearch = state?.fromSearch || params.get("source") === "search" || Boolean(searchQuery);
   const backTo = state?.fromCart
     ? "/cart"
     : state?.fromDiscount
@@ -164,6 +165,41 @@ export default function BookDetails() {
           : searchQuery
             ? `/search?q=${encodeURIComponent(searchQuery)}`
             : "/";
+
+  const handleBack = () => {
+    if (state?.fromCart) {
+      navigate("/cart", { state: { restoreCartScroll: true } });
+      return;
+    }
+    if (state?.fromDiscount) {
+      navigate("/discount", { state: { restoreDiscountScroll: true } });
+      return;
+    }
+    if (fromHome) {
+      navigate("/", { state: { restoreHomeScroll: true } });
+      return;
+    }
+    if (fromBookPicks) {
+      navigate("/featured", { state: { restoreFeaturedScroll: true } });
+      return;
+    }
+    if (fromNew) {
+      navigate("/new", { state: { restoreNewScroll: true } });
+      return;
+    }
+    if (searchQuery || fromSearch) {
+      const q = searchQuery || sessionStorage.getItem("kazbook-search-scroll-query") || "";
+      navigate(q ? `/search?q=${encodeURIComponent(q)}` : "/search", {
+        state: { restoreSearchScroll: true, query: q },
+      });
+      return;
+    }
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    navigate("/");
+  };
 
   const [product, setProduct] = useState(null);
   const [rate, setRate] = useState(null);
@@ -466,17 +502,7 @@ export default function BookDetails() {
     <section className="book section container">
       <button
         className="book__back"
-        onClick={() =>
-          navigate(backTo, {
-            state: state?.fromCart
-              ? { restoreCartScroll: true }
-              : state?.fromDiscount
-                ? { restoreDiscountScroll: true }
-                : fromHome
-                  ? { restoreHomeScroll: true }
-                  : undefined,
-          })
-        }
+        onClick={handleBack}
       >
         <i className="ri-arrow-left-line" /> {t("book.back")}
       </button>

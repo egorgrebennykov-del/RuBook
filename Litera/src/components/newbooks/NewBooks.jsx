@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { addToCart, getCart, removeFromCart } from "../../../utils/cart";
 import { getCookieUser, isLoggedIn, isPrivileged } from "../../../utils/auth";
 import getExchangeRate, { getCachedExchangeRate, DEFAULT_RATE } from "../../../utils/getExchangeRate";
@@ -29,6 +29,7 @@ function formatPrice(value, currency, language) {
 export default function NewBooks() {
   const { language, t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const [data, setData] = useState(() => {
     const cached = getCachedNewBooks();
     if (!cached) return { updatedAt: null, products: [] };
@@ -60,6 +61,14 @@ export default function NewBooks() {
   const needsCartCheck = isLoggedIn() && Boolean(userId);
   const cartReady = !needsCartCheck || cartLoaded;
   const [failedBookUrls, setFailedBookUrls] = useState(() => new Set());
+
+  useEffect(() => {
+    if (status !== "ready" || !location.state?.restoreNewScroll) return;
+    const saved = Number(sessionStorage.getItem("kazbook-new-scroll"));
+    sessionStorage.removeItem("kazbook-new-scroll");
+    if (!Number.isFinite(saved) || saved <= 0) return;
+    requestAnimationFrame(() => window.scrollTo(0, saved));
+  }, [status, location.state]);
 
   useEffect(() => {
     let cancelled = false;
@@ -277,6 +286,9 @@ export default function NewBooks() {
                     book: preview,
                     query: book.title,
                     fromNew: true,
+                  }}
+                  onClick={() => {
+                    sessionStorage.setItem("kazbook-new-scroll", String(window.scrollY));
                   }}
                 >
                   <BookImage

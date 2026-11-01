@@ -124,7 +124,11 @@ function App() {
   const shouldRestoreScroll = Boolean(
     location.state?.restoreCartScroll ||
     location.state?.restoreDiscountScroll ||
-    location.state?.restoreHomeScroll,
+    location.state?.restoreHomeScroll ||
+    location.state?.restoreSearchScroll ||
+    location.state?.restoreFeaturedScroll ||
+    location.state?.restoreNewScroll ||
+    (location.pathname === "/search" && sessionStorage.getItem("kazbook-search-scroll") !== null),
   );
 
   useEffect(() => {

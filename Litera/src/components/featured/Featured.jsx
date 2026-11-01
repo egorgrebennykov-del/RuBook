@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { addToCart, getCart, removeFromCart } from "../../../utils/cart";
 import { getCookieUser, isLoggedIn, isPrivileged } from "../../../utils/auth";
 import getExchangeRate, { getCachedExchangeRate, DEFAULT_RATE } from "../../../utils/getExchangeRate";
@@ -29,6 +29,7 @@ function formatEuroPrice(price) {
 export default function Featured() {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const [books, setBooks] = useState(() => getCachedBookPicks() ?? []);
   const [status, setStatus] = useState(() => {
     const cached = getCachedBookPicks();
@@ -45,6 +46,14 @@ export default function Featured() {
   const needsCartCheck = isLoggedIn() && Boolean(userId);
   const cartReady = !needsCartCheck || cartLoaded;
   const [failedBookUrls, setFailedBookUrls] = useState(() => new Set());
+
+  useEffect(() => {
+    if (status !== "ready" || !location.state?.restoreFeaturedScroll) return;
+    const saved = Number(sessionStorage.getItem("kazbook-featured-scroll"));
+    sessionStorage.removeItem("kazbook-featured-scroll");
+    if (!Number.isFinite(saved) || saved <= 0) return;
+    requestAnimationFrame(() => window.scrollTo(0, saved));
+  }, [status, location.state]);
 
   useEffect(() => {
     let cancelled = false;
@@ -245,6 +254,9 @@ export default function Featured() {
                       },
                       query: book.title,
                       fromBookPicks: true,
+                    }}
+                    onClick={() => {
+                      sessionStorage.setItem("kazbook-featured-scroll", String(window.scrollY));
                     }}
                   >
                     <BookImage

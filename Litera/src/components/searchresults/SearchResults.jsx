@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { useEffect, useState, useRef } from "react";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import searchBooks from "../../../utils/searchBooks";
 import { useSearchCache } from "../../context/searchCache";
 import { addToCart, getCart, removeFromCart } from "../../../utils/cart";
@@ -54,8 +54,10 @@ export default function SearchResults() {
   const [params] = useSearchParams();
   const { query: routeQuery } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const query = params.get("q") ?? (routeQuery ? decodeURIComponent(routeQuery) : "");
   const cache = useSearchCache();
+  const restoredRef = useRef(false);
   const [inputVal, setInputVal] = useState(query);
   const [result, setResult] = useState({ query: "", books: [] });
   const [imageStatuses, setImageStatuses] = useState(() => new Map());
@@ -80,6 +82,50 @@ export default function SearchResults() {
   const isSearching = Boolean(query) && !cached && (searching || result.query !== query);
   const initialLoading = isSearching && books.length === 0;
   const streamingMore = isSearching && books.length > 0;
+
+  useEffect(() => {
+    restoredRef.current = false;
+  }, [query]);
+
+  useEffect(() => {
+    if (restoredRef.current || books.length === 0 || initialLoading) return;
+
+    const raw = sessionStorage.getItem("kazbook-search-scroll");
+    const targetUrl = sessionStorage.getItem("kazbook-search-scroll-url");
+    const savedQuery = sessionStorage.getItem("kazbook-search-scroll-query");
+
+    if (!raw && !targetUrl) return;
+    if (savedQuery && query && savedQuery.toLowerCase() !== query.toLowerCase()) return;
+
+    const savedScroll = Number(raw);
+    restoredRef.current = true;
+
+    const restorePosition = () => {
+      if (Number.isFinite(savedScroll) && savedScroll > 0) {
+        window.scrollTo({ top: savedScroll, behavior: "instant" });
+      }
+      if (targetUrl) {
+        const el = document.getElementById(`book-card-${encodeURIComponent(targetUrl)}`);
+        if (el) {
+          el.scrollIntoView({ block: "center", behavior: "instant" });
+        }
+      }
+    };
+
+    restorePosition();
+
+    const rId = requestAnimationFrame(() => {
+      restorePosition();
+      const t1 = setTimeout(restorePosition, 60);
+      const t2 = setTimeout(restorePosition, 200);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
+    });
+
+    return () => cancelAnimationFrame(rId);
+  }, [books.length, initialLoading, location.state, query]);
 
   useEffect(() => {
     if (!query || cache.get(query)) {
@@ -374,11 +420,17 @@ export default function SearchResults() {
               <article
                 className={`results__card ${coverLoaded ? "results__card--cover-loaded" : ""}`}
                 key={book.url}
+                id={`book-card-${encodeURIComponent(book.url)}`}
               >
                 <Link
                   className="results__open"
-                  to={`/book?url=${encodeURIComponent(book.url)}&q=${encodeURIComponent(query)}`}
-                  state={{ book, query }}
+                  to={`/book?url=${encodeURIComponent(book.url)}&q=${encodeURIComponent(query)}&source=search`}
+                  state={{ book, query, fromSearch: true }}
+                  onClick={() => {
+                    sessionStorage.setItem("kazbook-search-scroll", String(window.scrollY));
+                    sessionStorage.setItem("kazbook-search-scroll-query", query);
+                    sessionStorage.setItem("kazbook-search-scroll-url", book.url);
+                  }}
                 >
                   <BookImage
                     className="results__img"
